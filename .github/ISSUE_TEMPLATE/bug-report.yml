@@ -1,0 +1,12 @@
+name: Bug report
+description: A wrong verdict or broken UI.
+title: "[bug]: "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: Which plugin, what verdict you got, and what you expected.
+    validations:
+      required: true

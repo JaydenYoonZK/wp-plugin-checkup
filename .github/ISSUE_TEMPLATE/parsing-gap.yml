@@ -1,0 +1,18 @@
+name: Plugin list format not recognized
+description: A plugin-list format the tool did not parse into slugs.
+title: "[parsing]: "
+labels: ["parser"]
+body:
+  - type: textarea
+    id: sample
+    attributes:
+      label: Sample list
+      description: A few lines in the format that did not work. Redact anything private.
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: source
+    attributes:
+      label: Where did it come from?
+      placeholder: e.g. export from a plugin manager, a hosting panel

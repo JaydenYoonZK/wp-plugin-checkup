@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WP Plugin Checkup: find abandoned and removed WordPress plugins</title>
+  <meta name="description" content="Paste your WordPress plugins and check each against WordPress.org: removed from the directory, abandoned, or untested with current WordPress. Runs in your browser.">
+  <link rel="canonical" href="https://jaydenyoonzk.github.io/wp-plugin-checkup/">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d0c0a'/%3E%3Ctext x='32' y='45' text-anchor='middle' font-size='34' fill='%23abcf37'%3E%E2%9C%93%3C/text%3E%3C/svg%3E">
+  <meta property="og:title" content="WP Plugin Checkup: find abandoned and removed WordPress plugins">
+  <meta property="og:description" content="Check your WordPress plugins against WordPress.org for removed, abandoned, and untested ones. The plugins you forgot about are the ones that get you hacked.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://jaydenyoonzk.github.io/wp-plugin-checkup/">
+  <meta property="og:image" content="https://jaydenyoonzk.github.io/wp-plugin-checkup/assets/preview.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://jaydenyoonzk.github.io/wp-plugin-checkup/assets/preview.png">
+  <script>
+    (function () {
+      var t = new URLSearchParams(location.search).get("theme") || localStorage.getItem("theme");
+      if (t !== "light" && t !== "dark") t = matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+      document.documentElement.dataset.theme = t;
+    })();
+  </script>
+  <link rel="stylesheet" href="styles.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "WP Plugin Checkup",
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": "Any (browser-based)",
+    "url": "https://jaydenyoonzk.github.io/wp-plugin-checkup/",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "author": { "@type": "Person", "name": "Jayden Yoon ZK", "url": "https://github.com/JaydenYoonZK" }
+  }
+  </script>
+</head>
+<body>
+
+<div class="bg-scene" aria-hidden="true">
+  <div class="orb orb-a"></div>
+  <div class="orb orb-b"></div>
+  <div class="star-layer sl-far">
+    <span class="star" style="left:12%;top:18%;animation-delay:-1.4s"></span>
+    <span class="star" style="left:38%;top:8%;animation-delay:-3.8s;animation-duration:8.6s"></span>
+    <span class="star" style="left:63%;top:14%;animation-delay:-5.6s"></span>
+    <span class="star" style="left:87%;top:22%;animation-delay:-2.3s;animation-duration:9.2s"></span>
+    <span class="star" style="left:22%;top:60%;animation-delay:-6.7s"></span>
+    <span class="star" style="left:74%;top:70%;animation-delay:-0.9s;animation-duration:8s"></span>
+  </div>
+  <div class="star-layer sl-mid">
+    <span class="star" style="left:8%;top:34%;animation-delay:-4.5s"></span>
+    <span class="star" style="left:47%;top:24%;animation-delay:-3.1s;animation-duration:7.8s"></span>
+    <span class="star" style="left:92%;top:47%;animation-delay:-1.8s"></span>
+    <span class="star" style="left:30%;top:86%;animation-delay:-5.9s;animation-duration:8.8s"></span>
+    <span class="star" style="left:61%;top:94%;animation-delay:-2.7s"></span>
+  </div>
+  <div class="star-layer sl-near">
+    <span class="star" style="left:5%;top:52%;animation-delay:-3.4s;animation-duration:7.4s"></span>
+    <span class="star" style="left:95%;top:31%;animation-delay:-6.2s"></span>
+    <span class="star" style="left:17%;top:116%;animation-delay:-1.2s;animation-duration:8.2s"></span>
+    <span class="star" style="left:84%;top:128%;animation-delay:-4.9s"></span>
+  </div>
+  <div class="shape cube3d p1"><div class="dx"><div class="dy"><div class="inner"><div class="f"></div><div class="f"></div><div class="f"></div><div class="f"></div><div class="f"></div><div class="f"></div></div></div></div></div>
+  <div class="shape cube3d p2"><div class="dx"><div class="dy"><div class="inner"><div class="f"></div><div class="f"></div><div class="f"></div><div class="f"></div><div class="f"></div><div class="f"></div></div></div></div></div>
+  <div class="shape cube3d p3"><div class="dx"><div class="dy"><div class="inner"><div class="f"></div><div class="f"></div><div class="f"></div><div class="f"></div><div class="f"></div><div class="f"></div></div></div></div></div>
+  <div class="shape sph p4"><div class="dx"><div class="dy"><div class="inner"></div></div></div></div>
+  <div class="shape sph p5"><div class="dx"><div class="dy"><div class="inner"></div></div></div></div>
+  <div class="shape cube3d p6"><div class="dx"><div class="dy"><div class="inner"><div class="f"></div><div class="f"></div><div class="f"></div><div class="f"></div><div class="f"></div><div class="f"></div></div></div></div></div>
+  <div class="shape sph p7"><div class="dx"><div class="dy"><div class="inner"></div></div></div></div>
+  <div class="shape sph p10"><div class="dx"><div class="dy"><div class="inner"></div></div></div></div>
+  <div class="shape sph p11"><div class="dx"><div class="dy"><div class="inner"></div></div></div></div>
+  <div class="shape cube3d p8"><div class="dx"><div class="dy"><div class="inner"><div class="f"></div><div class="f"></div><div class="f"></div><div class="f"></div><div class="f"></div><div class="f"></div></div></div></div></div>
+  <div class="shape cube3d p9"><div class="dx"><div class="dy"><div class="inner"><div class="f"></div><div class="f"></div><div class="f"></div><div class="f"></div><div class="f"></div><div class="f"></div></div></div></div></div>
+</div>
+
+<nav class="site-nav" aria-label="Page navigation">
+  <div class="wrap">
+    <a class="brand" href="#top">Jayden Yoon ZK</a>
+    <div class="nav-links">
+      <a href="#risk">The risk</a>
+      <a href="#verdicts">Verdicts</a>
+      <a href="#where">Find your list</a>
+      <a href="#faq">FAQ</a>
+    </div>
+    <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Toggle light and dark mode">☀️</button>
+  </div>
+</nav>
+
+<header id="top">
+  <div class="wrap header-grid">
+    <div class="header-copy">
+    <p class="eyebrow">WP Plugin Checkup</p>
+    <h1>The plugins you forgot about are the ones that get you hacked.</h1>
+    <p class="lede">A WordPress site collects plugins over the years, and the risky ones are rarely the ones you use daily. They are the abandoned helper you installed once, or the plugin quietly pulled from the directory for a security problem you never heard about. Paste your plugin list and check every one against WordPress.org in seconds.</p>
+    <p class="privacy"><span class="dot"></span> 🔒 Plugin names go to WordPress.org to look up their status. Nothing else is collected.</p>
+    </div>
+    <div class="hero-art" aria-hidden="true">
+<svg viewBox="0 0 320 270" xmlns="http://www.w3.org/2000/svg" fill="none">
+  <defs><radialGradient id="hg" cx="0.2" cy="0" r="1"><stop offset="0" stop-color="#abcf37" stop-opacity="0.1"/><stop offset="1" stop-color="#abcf37" stop-opacity="0"/></radialGradient></defs>
+  <rect x="4" y="4" width="312" height="262" rx="24" fill="#16140f" stroke="#ffffff" stroke-opacity="0.12"/>
+  <rect x="4" y="4" width="312" height="262" rx="24" fill="url(#hg)"/>
+  <circle cx="28" cy="28" r="4" fill="#ffffff" fill-opacity="0.14"/><circle cx="43" cy="28" r="4" fill="#ffffff" fill-opacity="0.14"/><circle cx="58" cy="28" r="4" fill="#ffffff" fill-opacity="0.14"/>
+  <text x="270" y="33" text-anchor="end" font-family="ui-monospace, Menlo, monospace" font-size="11" fill="#8f887c">plugins</text>
+  <path d="M4 48H316" stroke="#ffffff" stroke-opacity="0.08"/>
+  <g font-family="ui-sans-serif, system-ui, sans-serif" font-size="12">
+    <rect x="28" y="66" width="264" height="34" rx="10" fill="#ff7a6e" fill-opacity="0.08" stroke="#ff7a6e" stroke-opacity="0.35"/>
+    <circle cx="46" cy="83" r="6" fill="#ff7a6e"/><path d="M43 83h6" stroke="#0d0c0a" stroke-width="1.6"/>
+    <text x="62" y="79" fill="#f3f0e9">seo-booster-pro</text><text x="62" y="92" fill="#8f887c" font-size="10">removed from directory</text>
+    <rect x="248" y="74" width="34" height="18" rx="6" fill="#ff7a6e" fill-opacity="0.15"/><text x="265" y="86" text-anchor="middle" fill="#ff7a6e" font-size="9" font-weight="700">GONE</text>
+    <animate attributeName="opacity" values="1;0.4;1" dur="3s" repeatCount="indefinite"/>
+  </g>
+  <g font-family="ui-sans-serif, system-ui, sans-serif" font-size="12">
+    <rect x="28" y="108" width="264" height="34" rx="10" fill="#ffc65c" fill-opacity="0.07" stroke="#ffc65c" stroke-opacity="0.3"/>
+    <circle cx="46" cy="125" r="6" fill="#ffc65c"/>
+    <text x="62" y="121" fill="#f3f0e9">contact-widget</text><text x="62" y="134" fill="#8f887c" font-size="10">no update in 31 months</text>
+    <rect x="234" y="116" width="48" height="18" rx="6" fill="#ffc65c" fill-opacity="0.15"/><text x="258" y="128" text-anchor="middle" fill="#ffc65c" font-size="9" font-weight="700">OLD</text>
+  </g>
+  <g font-family="ui-sans-serif, system-ui, sans-serif" font-size="12">
+    <rect x="28" y="150" width="264" height="34" rx="10" fill="#a7e26a" fill-opacity="0.07" stroke="#a7e26a" stroke-opacity="0.3"/>
+    <circle cx="46" cy="167" r="6" fill="#a7e26a"/><path d="M43 167l2.5 2.5l4-5" stroke="#0d0c0a" stroke-width="1.4" fill="none"/>
+    <text x="62" y="163" fill="#f3f0e9">woocommerce</text><text x="62" y="176" fill="#8f887c" font-size="10">healthy, tested to WP 7.0</text>
+    <rect x="238" y="158" width="44" height="18" rx="6" fill="#a7e26a" fill-opacity="0.15"/><text x="260" y="170" text-anchor="middle" fill="#a7e26a" font-size="9" font-weight="700">OK</text>
+  </g>
+  <text x="28" y="212" fill="#8f887c" font-size="12" font-family="ui-sans-serif, system-ui, sans-serif">Checked against the WordPress.org</text>
+  <text x="28" y="230" fill="#8f887c" font-size="12" font-family="ui-sans-serif, system-ui, sans-serif">plugin directory, live.</text>
+</svg>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="card">
+    <label for="input" style="display:none">Plugin list</label>
+    <textarea id="input" placeholder="Paste plugin slugs, folder/file.php paths, or wordpress.org plugin URLs, one per line..." spellcheck="false" style="min-height:150px; font-family: var(--mono); font-size: 0.9rem;"></textarea>
+    <div class="toolbar">
+      <button id="check" class="primary" type="button">Check plugins</button>
+      <button id="paste" type="button">Paste &amp; check</button>
+      <button id="sample" type="button">Try a sample</button>
+      <button id="clear" type="button">Clear</button>
+      <span class="spacer"></span>
+      <span class="charcount" id="wp-version"></span>
+    </div>
+  </div>
+
+  <div id="results" hidden>
+    <p class="kind-note" id="kind-note"></p>
+    <div class="progress" id="progress" hidden><div id="progress-bar"></div></div>
+    <div class="stats" id="summary" role="status"></div>
+    <table class="results-table">
+      <thead><tr><th>Plugin</th><th>Status</th><th>Details</th></tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+
+  <div class="prose">
+    <h2 id="risk">🚪 Why old plugins are the real risk</h2>
+    <p>Most WordPress compromises do not come from clever attacks. They come from a plugin with a known, published vulnerability that nobody got around to updating, because nobody remembered it was installed. Two situations deserve immediate attention:</p>
+    <ul>
+      <li><strong>Removed from the directory.</strong> When WordPress.org pulls a plugin, it is often because of an unresolved security issue. The plugin keeps running on your site, but it stops receiving updates and quietly disappears from search, so you may never learn there was a problem. This tool flags any plugin the directory no longer lists.</li>
+      <li><strong>Abandoned.</strong> A plugin with no update in years is a bet that no vulnerability will ever be found in it, and that bet gets worse every month. WordPress itself warns you about plugins untouched for two or more years.</li>
+    </ul>
+
+    <h2 id="verdicts">🚦 What the verdicts mean</h2>
+    <table>
+      <tr><th>Verdict</th><th>Meaning</th></tr>
+      <tr><td><span class="pill removed">GONE</span></td><td>WordPress.org has no such plugin. Possibly removed from the directory (treat as urgent), or a premium or custom plugin the directory never listed.</td></tr>
+      <tr><td><span class="pill abandoned">ABANDONED</span></td><td>No update in roughly two years or more. Find a maintained alternative.</td></tr>
+      <tr><td><span class="pill outdated">CHECK</span></td><td>Stale (about a year since the last update), only tested against an old WordPress version, or very few installs. Usually fine, worth confirming.</td></tr>
+      <tr><td><span class="pill ok">HEALTHY</span></td><td>Recently updated and tested with current WordPress. This is about maintenance, not a security guarantee.</td></tr>
+    </table>
+
+    <h2 id="where">📋 Where to find your plugin list</h2>
+    <p>Any of these formats works, mixed freely, one per line:</p>
+    <ul>
+      <li>Plain slugs, the last part of a plugin's directory URL: <code>woocommerce</code></li>
+      <li>Folder or file paths as WordPress stores them: <code>woocommerce/woocommerce.php</code></li>
+      <li>Directory URLs: <code>https://wordpress.org/plugins/woocommerce/</code></li>
+    </ul>
+    <p>To get the full list from a live site: in the dashboard, open <strong>Plugins</strong> and copy the names, or with WP-CLI run <code>wp plugin list --field=name</code>. Over SFTP, the folder names inside <code>wp-content/plugins/</code> are the slugs.</p>
+
+    <h2 id="faq">💬 Questions people ask</h2>
+    <h3>Does GONE always mean the plugin is dangerous?</h3>
+    <p>No. Premium plugins (many page builders, form tools, and commercial extensions) are sold outside the directory and will always show as GONE here, which is expected. The verdict means only that the public directory does not list it. What matters is whether you recognize the plugin and trust where it came from. An unfamiliar plugin showing GONE is the one to investigate.</p>
+    <h3>Is my site connected or scanned?</h3>
+    <p>No. You paste a list of names; the tool looks each name up in the public WordPress.org plugin API from your browser. It never touches your site, needs no login, and sends nothing except the plugin slugs it has to look up.</p>
+    <h3>A healthy plugin still had a vulnerability once. Does this catch that?</h3>
+    <p>This checks maintenance status: is the plugin alive, current, and tested. It is not a vulnerability database. A well-maintained plugin can still have had a bug, the difference is that a maintained plugin ships a fix and an abandoned one never does. For specific known vulnerabilities, a dedicated vulnerability feed is the right tool, and keeping everything updated is what turns most of them harmless.</p>
+    <h3>Can I use the engine in my own project?</h3>
+    <p>Yes. <code>docs/checkup.js</code> is a dependency-free ES module: <code>parseSlugs</code>, <code>apiUrl</code>, and <code>verdict</code>. MIT licensed.</p>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>Built by <a href="https://github.com/JaydenYoonZK">Jayden Yoon ZK</a></span>
+    <a href="https://github.com/JaydenYoonZK/wp-plugin-checkup">Source on GitHub</a>
+    <a href="https://github.com/JaydenYoonZK/wp-plugin-checkup/issues">Report an issue</a>
+    <a href="https://jaydenyoonzk.github.io/wp-serial-fix/">WP Serial Fix</a>
+    <a href="https://jaydenyoonzk.github.io/wp-config-doctor/">WP Config Doctor</a>
+    <span>MIT License</span>
+  </div>
+</footer>
+
+<button id="to-top" class="to-top" type="button" aria-label="Back to top">&#8593;</button>
+<script type="module" src="app.js"></script>
+</body>
+</html>
