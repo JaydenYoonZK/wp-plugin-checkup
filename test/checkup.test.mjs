@@ -17,6 +17,16 @@ test("slugFromLine handles the common formats", () => {
   assert.equal(slugFromLine("https://example.com/not-a-plugin"), null);
 });
 
+test("parseSlugs reads a pasted WP-CLI table", () => {
+  const table = `+----------------+--------+-----------+---------+
+| name           | status | update    | version |
++----------------+--------+-----------+---------+
+| akismet        | active | none      | 5.7     |
+| classic-editor | active | available | 1.7.0   |
++----------------+--------+-----------+---------+`;
+  assert.deepEqual(parseSlugs(table), ["akismet", "classic-editor"]);
+});
+
 test("parseSlugs dedupes and preserves order", () => {
   const input = `classic-editor
 akismet

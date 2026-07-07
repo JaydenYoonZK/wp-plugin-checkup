@@ -20,6 +20,15 @@ export function slugFromLine(line) {
   let s = line.trim();
   if (!s || s.startsWith("#") || s.startsWith("//")) return null;
 
+  // WP-CLI table borders and separators (+----+----+)
+  if (/^[+|\-\s]+$/.test(s)) return null;
+
+  // WP-CLI table row: | akismet | active | ... |  ->  first cell
+  if (s.startsWith("|")) {
+    s = s.split("|").map(c => c.trim()).find(c => c) || "";
+    if (!s) return null;
+  }
+
   // wordpress.org plugin URL
   const urlMatch = s.match(/wordpress\.org\/plugins\/([a-z0-9-]+)/i);
   if (urlMatch) return urlMatch[1].toLowerCase();
@@ -30,8 +39,8 @@ export function slugFromLine(line) {
   // folder/file.php  ->  folder
   if (s.includes("/")) s = s.split("/")[0];
 
-  // WP-CLI table rows or comma/space separated: take the first token
-  s = s.split(/[\s,|]+/)[0];
+  // comma / space / remaining pipe separated: take the first non-empty token
+  s = s.split(/[\s,|]+/).find(t => t) || "";
 
   // strip a trailing .php just in case
   s = s.replace(/\.php$/i, "");
@@ -39,6 +48,8 @@ export function slugFromLine(line) {
   // valid plugin slugs are lowercase letters, numbers, and hyphens
   s = s.toLowerCase();
   if (!/^[a-z0-9][a-z0-9-]*$/.test(s)) return null;
+  // skip the WP-CLI header row's column name
+  if (["name", "title", "slug", "status", "plugin"].includes(s)) return null;
   return s;
 }
 
