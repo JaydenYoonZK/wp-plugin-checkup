@@ -80,7 +80,7 @@ const v = verdict(slug, info, { now: Date.now(), currentMajor: 7 });
 npm test
 ```
 
-13 tests cover slug parsing across formats, the API date format, and every verdict path against fixed dates.
+18 tests cover slug parsing across formats (including comma-separated lists and WP-CLI CSV), the WordPress x.y version comparison, the API date format, and every verdict path against fixed dates.
 
 ## A note on scope
 

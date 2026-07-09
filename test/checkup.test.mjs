@@ -5,7 +5,7 @@ import {
 } from "../docs/checkup.js";
 
 const NOW = Date.UTC(2026, 6, 7); // 2026-07-07
-const CTX = { now: NOW, currentMajor: 7 };
+const CTX = { now: NOW, currentVersion: "7.0" };
 
 test("slugFromLine handles the common formats", () => {
   assert.equal(slugFromLine("classic-editor"), "classic-editor");
@@ -110,4 +110,33 @@ test("sortVerdicts puts the urgent ones first", () => {
 test("monthsBetween is sane", () => {
   const m = monthsBetween(Date.UTC(2026, 0, 7), NOW);
   assert.ok(m > 5.5 && m < 6.5, `about 6 months, got ${m}`);
+});
+
+test("verdict: tested-version lag is caught WITHIN a major (the 6.x bug)", () => {
+  // Plugin tested only to WP 6.0 while current is 6.7: seven x.y releases behind.
+  // The old leading-integer compare treated both as major "6" and missed this.
+  const v = verdict("laggy6", {
+    exists: true, name: "Laggy6", last_updated: "2026-06-01 12:00am GMT",
+    tested: "6.0", active_installs: 200000
+  }, { now: NOW, currentVersion: "6.7" });
+  assert.equal(v.level, "outdated");
+  assert.match(v.detail, /tested up to WordPress 6\.0/);
+});
+
+test("verdict: one x.y release behind is still healthy", () => {
+  const v = verdict("recent", {
+    exists: true, name: "Recent", last_updated: "2026-06-20 12:00am GMT",
+    tested: "6.6", active_installs: 900000
+  }, { now: NOW, currentVersion: "6.7" });
+  assert.equal(v.level, "ok");
+});
+
+test("parseSlugs reads a comma-and-space separated list", () => {
+  assert.deepEqual(parseSlugs("akismet, jetpack, woocommerce"),
+    ["akismet", "jetpack", "woocommerce"]);
+});
+
+test("parseSlugs does not split tight CSV columns into fake slugs", () => {
+  // wp plugin list --format=csv row: only the first cell is a plugin slug.
+  assert.deepEqual(parseSlugs("akismet,active,none,5.7"), ["akismet"]);
 });

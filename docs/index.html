@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- The only network the tool needs is the WordPress.org plugin API, so
+       connect-src is pinned to it. Your plugin list goes nowhere else. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src https://api.wordpress.org; base-uri 'none'; form-action 'none'">
   <title>WP Plugin Checkup: find abandoned and removed WordPress plugins</title>
   <meta name="description" content="Paste your WordPress plugins and check each against WordPress.org: removed from the directory, abandoned, or untested with current WordPress. Runs in your browser.">
   <link rel="canonical" href="https://jaydenyoonzk.github.io/wp-plugin-checkup/">
@@ -21,7 +24,7 @@
       document.documentElement.dataset.theme = t;
     })();
   </script>
-  <link rel="stylesheet" href="styles.css?v=20260709l">
+  <link rel="stylesheet" href="styles.css?v=20260709m">
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -133,7 +136,7 @@
 
 <main class="wrap">
   <div class="card">
-    <label for="input" style="display:none">Plugin list</label>
+    <label for="input" class="sr-only">Plugin list</label>
     <textarea id="input" placeholder="Paste plugin slugs, folder/file.php paths, or wordpress.org plugin URLs, one per line..." spellcheck="false" style="min-height:150px; font-family: var(--mono); font-size: 0.9rem;"></textarea>
     <div class="toolbar">
       <button id="check" disabled type="button" data-tip="Check each plugin against the WordPress.org directory" data-tip-off="Paste or type some plugin slugs first">Check plugins</button>
@@ -207,6 +210,6 @@
 </footer>
 
 <button id="to-top" class="to-top" type="button" aria-label="Back to top">&#8593;</button>
-<script type="module" src="app.js?v=20260709l"></script>
+<script type="module" src="app.js?v=20260709m"></script>
 </body>
 </html>

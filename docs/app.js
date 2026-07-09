@@ -1,7 +1,7 @@
-import { parseSlugs, apiUrl, directoryUrl, verdict, sortVerdicts } from "./checkup.js";
+import { parseSlugs, apiUrl, directoryUrl, verdict, sortVerdicts, parseWpVersion } from "./checkup.js";
 
 const $ = (id) => document.getElementById(id);
-const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 
 const input = $("input");
 const results = $("results");
@@ -27,7 +27,7 @@ input.addEventListener("input", syncControls);
 const MAX_PLUGINS = 150;
 const CONCURRENCY = 5;
 
-let currentMajor = 7;      // fallback; refreshed from WordPress.org on load
+let currentVersion = "6.7"; // fallback; refreshed from WordPress.org on load
 let nowMs = Date.UTC(2026, 6, 7); // fallback; replaced with real clock at runtime
 
 const LABEL = { removed: "GONE", abandoned: "ABANDONED", outdated: "CHECK", ok: "HEALTHY", error: "RETRY", checking: "…" };
@@ -39,8 +39,15 @@ async function fetchCurrentVersion() {
     const data = await res.json();
     const latest = Object.entries(data).filter(([, s]) => s === "latest").map(([v]) => v);
     if (latest.length) {
-      const maj = Math.max(...latest.map(v => parseInt(v, 10)).filter(n => !Number.isNaN(n)));
-      if (maj) { currentMajor = maj; $("wp-version").textContent = `current WordPress: ${latest.sort().pop()}`; }
+      // Pick the numerically highest "latest" version as x.y (string sort would
+      // rank 6.9 above 6.10, so compare major then minor).
+      currentVersion = latest.reduce((best, v) => {
+        const a = parseWpVersion(v), b = parseWpVersion(best);
+        if (!a) return best;
+        if (!b || a.major > b.major || (a.major === b.major && a.minor > b.minor)) return v;
+        return best;
+      });
+      $("wp-version").textContent = `current WordPress: ${currentVersion}`;
     }
   } catch { /* keep fallback */ }
 }
@@ -113,7 +120,7 @@ async function run() {
     while (queue.length) {
       const { slug, i } = queue.shift();
       const info = await fetchInfo(slug);
-      const v = verdict(slug, info, { now: nowMs, currentMajor });
+      const v = verdict(slug, info, { now: nowMs, currentVersion });
       verdicts[i] = v;
       rows[i].innerHTML = rowHtml(slug, v);
       done++;

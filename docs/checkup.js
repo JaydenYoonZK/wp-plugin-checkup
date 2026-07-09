@@ -58,8 +58,16 @@ export function parseSlugs(input) {
   const seen = new Set();
   const out = [];
   for (const line of input.split(/\r?\n/)) {
-    const slug = slugFromLine(line);
-    if (slug && !seen.has(slug)) { seen.add(slug); out.push(slug); }
+    // A pipe row is a WP-CLI table (the slug is its first cell). Any other line
+    // may be a comma-and-space separated list, so split it into items. The split
+    // requires whitespace after the comma so that tight CSV output like
+    // "akismet,active,none,5.7" is left whole and its columns are not mistaken
+    // for plugin slugs; slugFromLine still takes the first token of that line.
+    const items = line.includes("|") ? [line] : line.split(/,\s+/);
+    for (const item of items) {
+      const slug = slugFromLine(item);
+      if (slug && !seen.has(slug)) { seen.add(slug); out.push(slug); }
+    }
   }
   return out;
 }
@@ -74,10 +82,26 @@ export function parseUpdated(str) {
   return Date.UTC(+m[1], +m[2] - 1, +m[3]);
 }
 
-function majorOf(version) {
-  if (!version) return null;
-  const m = /^(\d+)/.exec(String(version));
-  return m ? parseInt(m[1], 10) : null;
+/** Parse a WordPress version into {major, minor}. A WP "major" release is the
+ *  x.y pair (6.4, 6.5), not just the leading integer, so 6.4 and 6.7 are
+ *  different majors. Patch (6.4.1) and anything after is ignored. */
+export function parseWpVersion(v) {
+  if (v == null) return null;
+  const m = /^(\d+)(?:\.(\d+))?/.exec(String(v));
+  return m ? { major: +m[1], minor: m[2] ? +m[2] : 0 } : null;
+}
+
+/** How many x.y releases the tested version is behind the current one. A major
+ *  bump counts as ~10 minor releases, which is about how many WordPress ships
+ *  per major, so the gap stays sensible across the x.9 -> (x+1).0 boundary.
+ *  Positive means behind; zero or negative means current or ahead. Null when
+ *  either version cannot be read. This replaces a leading-integer compare that
+ *  treated every 6.x as the same version, which quietly disabled this check for
+ *  the entire WordPress 6 era. */
+export function testedVersionsBehind(tested, current) {
+  const t = parseWpVersion(tested), c = parseWpVersion(current);
+  if (!t || !c) return null;
+  return (c.major - t.major) * 10 + (c.minor - t.minor);
 }
 
 export function monthsBetween(then, now) {
@@ -109,7 +133,6 @@ const LEVEL_ORDER = { removed: 0, abandoned: 1, outdated: 2, error: 3, ok: 4 };
  */
 export function verdict(slug, info, ctx) {
   const now = ctx.now;
-  const currentMajor = ctx.currentMajor;
 
   if (info && info.error === "network") {
     return { slug, level: "error", label: "Could not check", detail: "Network error reaching WordPress.org. Try again in a moment." };
@@ -123,8 +146,7 @@ export function verdict(slug, info, ctx) {
 
   const updated = parseUpdated(info.last_updated);
   const months = updated ? monthsBetween(updated, now) : null;
-  const testedMajor = majorOf(info.tested);
-  const behind = currentMajor && testedMajor ? currentMajor - testedMajor : null;
+  const behind = testedVersionsBehind(info.tested, ctx.currentVersion);
   const flags = [];
 
   if (months !== null && months >= ABANDONED_MONTHS) {

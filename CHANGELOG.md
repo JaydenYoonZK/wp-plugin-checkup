@@ -3,6 +3,22 @@
 All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.1.0] - 2026-07-09
+
+### Fixed
+
+- The "only tested up to WordPress X" check works again. WordPress major releases are the x.y pair (6.4, 6.5), but the comparison read only the leading integer, so it treated every 6.x as the same version. That quietly disabled the tested-version signal for the whole WordPress 6 era: a plugin whose tested tag stopped at 6.0 read as "tested with a current WordPress version" while 6.7 was out. The comparison now counts x.y releases, so a plugin two or more releases behind is flagged, and one release behind is still fine.
+- A comma-and-space separated list on a single line no longer drops every plugin but the first. `akismet, jetpack, woocommerce` now checks all three. Tight CSV output (`akismet,active,none,5.7`) is still read as one plugin, so its status and version columns are not mistaken for plugin slugs.
+
+### Added
+
+- A Content Security Policy on the browser tool. The only network it needs is the WordPress.org plugin API, so `connect-src` is pinned to `https://api.wordpress.org` and nothing else; your plugin list cannot be sent elsewhere. Verified in a browser: the lookups still work and any other origin is blocked.
+
+### Changed
+
+- Accessibility: the paste box now has a real label instead of one hidden with `display:none`.
+- 18 tests, up from 13, including the within-major version lag and the comma-versus-CSV parsing.
+
 ## [1.0.7] - 2026-07-09
 
 ### Changed
@@ -66,5 +82,6 @@ First stable release.
 [1.0.4]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.0.4
 [1.0.3]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.0.3
 [1.0.2]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.0.2
+[1.1.0]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.1.0
 [1.0.1]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.0.1
 [1.0.0]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.0.0
