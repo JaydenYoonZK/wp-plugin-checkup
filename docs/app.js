@@ -21,7 +21,6 @@ function syncControls() {
   const hasContent = input.value.trim().length > 0;
   checkBtn.disabled = running || !hasContent;
   clearBtn.disabled = !hasContent;
-  $("paste").classList.toggle("primary", !hasContent);
 }
 input.addEventListener("input", syncControls);
 
@@ -162,6 +161,7 @@ pasteBtn.addEventListener("click", async () => {
     // native one-tap Paste on an empty field. Desktop keeps one-click paste.
     if (matchMedia("(pointer: coarse)").matches) {
       input.focus();
+      input.select(); // select existing text so a native paste replaces it
       const p = pasteBtn.textContent;
       pasteBtn.textContent = "Now paste into the box";
       setTimeout(() => { pasteBtn.textContent = p; }, 2600);
