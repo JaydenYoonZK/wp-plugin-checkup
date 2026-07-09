@@ -129,7 +129,7 @@ const LEVEL_ORDER = { removed: 0, abandoned: 1, outdated: 2, error: 3, ok: 4 };
 /**
  * Turn API facts into a verdict.
  * info: { exists, name?, version?, last_updated?, tested?, active_installs?, rating? }
- * ctx:  { now, currentMajor }
+ * ctx:  { now, currentVersion }
  */
 export function verdict(slug, info, ctx) {
   const now = ctx.now;
@@ -146,7 +146,8 @@ export function verdict(slug, info, ctx) {
 
   const updated = parseUpdated(info.last_updated);
   const months = updated ? monthsBetween(updated, now) : null;
-  const behind = testedVersionsBehind(info.tested, ctx.currentVersion);
+  const currentVersion = ctx.currentVersion ?? ctx.currentMajor;
+  const behind = testedVersionsBehind(info.tested, currentVersion);
   const flags = [];
 
   if (months !== null && months >= ABANDONED_MONTHS) {

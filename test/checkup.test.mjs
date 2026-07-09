@@ -131,6 +131,14 @@ test("verdict: one x.y release behind is still healthy", () => {
   assert.equal(v.level, "ok");
 });
 
+test("verdict: legacy currentMajor context still catches old tested versions", () => {
+  const v = verdict("legacy-docs", {
+    exists: true, name: "Legacy Docs", last_updated: "2026-06-20 12:00am GMT",
+    tested: "6.0", active_installs: 900000
+  }, { now: NOW, currentMajor: 7 });
+  assert.equal(v.level, "outdated");
+});
+
 test("parseSlugs reads a comma-and-space separated list", () => {
   assert.deepEqual(parseSlugs("akismet, jetpack, woocommerce"),
     ["akismet", "jetpack", "woocommerce"]);

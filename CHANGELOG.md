@@ -3,6 +3,21 @@
 All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## Unreleased
+
+### Added
+
+- GitHub Actions now runs the test suite and syntax checks on Node 18, 20, and 22 across Linux, macOS, and Windows.
+- A security policy points private vulnerability reports to GitHub Security Advisories.
+- The package metadata now limits packed files to the reusable engine, README, and license.
+
+### Fixed
+
+- The README's reusable-engine example now passes `currentVersion`, matching the public API used by the app.
+- `verdict()` still accepts the older `currentMajor` context key, so copied examples from older documentation keep flagging old tested-up-to versions instead of silently skipping that signal.
+- The README stars badge now links to the repository page, avoiding GitHub's 404 on the empty stargazers page.
+- The browser app cache-busts its engine import so GitHub Pages serves the current parser after deployment.
+
 ## [1.1.0] - 2026-07-09
 
 ### Fixed

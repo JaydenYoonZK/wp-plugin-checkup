@@ -4,7 +4,8 @@ Paste your WordPress plugins and check each against WordPress.org: removed from 
 
 <p>
   <a href="https://jaydenyoonzk.github.io/wp-plugin-checkup/"><img src="https://img.shields.io/badge/Live%20tool-open-abcf37?style=for-the-badge&logo=githubpages&logoColor=black" alt="Open the live tool"></a>
-  <a href="https://github.com/JaydenYoonZK/wp-plugin-checkup/stargazers"><img src="https://img.shields.io/github/stars/JaydenYoonZK/wp-plugin-checkup?style=for-the-badge&logo=github" alt="GitHub stars"></a>
+  <a href="https://github.com/JaydenYoonZK/wp-plugin-checkup/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/JaydenYoonZK/wp-plugin-checkup/ci.yml?branch=main&style=for-the-badge&label=tests" alt="CI status"></a>
+  <a href="https://github.com/JaydenYoonZK/wp-plugin-checkup"><img src="https://img.shields.io/github/stars/JaydenYoonZK/wp-plugin-checkup?style=for-the-badge&logo=github" alt="GitHub stars"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/JaydenYoonZK/wp-plugin-checkup?style=for-the-badge" alt="MIT License"></a>
 </p>
 
@@ -71,7 +72,7 @@ import { parseSlugs, apiUrl, verdict } from "./checkup.js";
 
 const slugs = parseSlugs(pastedList);
 // fetch apiUrl(slug) yourself, then:
-const v = verdict(slug, info, { now: Date.now(), currentMajor: 7 });
+const v = verdict(slug, info, { now: Date.now(), currentVersion: "7.0" });
 ```
 
 ## Tests
@@ -80,7 +81,7 @@ const v = verdict(slug, info, { now: Date.now(), currentMajor: 7 });
 npm test
 ```
 
-18 tests cover slug parsing across formats (including comma-separated lists and WP-CLI CSV), the WordPress x.y version comparison, the API date format, and every verdict path against fixed dates.
+19 tests cover slug parsing across formats (including comma-separated lists and WP-CLI CSV), the WordPress x.y version comparison, the API date format, and every verdict path against fixed dates.
 
 ## A note on scope
 

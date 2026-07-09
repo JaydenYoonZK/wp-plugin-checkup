@@ -5,6 +5,11 @@
   "type": "module",
   "private": true,
   "scripts": { "test": "node --test test/checkup.test.mjs", "serve": "python3 -m http.server 8421 -d docs" },
+  "files": [
+    "docs/checkup.js",
+    "LICENSE",
+    "README.md"
+  ],
   "license": "MIT",
   "author": "Jayden Yoon ZK",
   "repository": { "type": "git", "url": "https://github.com/JaydenYoonZK/wp-plugin-checkup.git" }

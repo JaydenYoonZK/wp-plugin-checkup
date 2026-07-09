@@ -1,4 +1,4 @@
-import { parseSlugs, apiUrl, directoryUrl, verdict, sortVerdicts, parseWpVersion } from "./checkup.js";
+import { parseSlugs, apiUrl, directoryUrl, verdict, parseWpVersion } from "./checkup.js?v=20260709n";
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
