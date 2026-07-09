@@ -11,6 +11,18 @@ const kindNote = $("kind-note");
 const progressWrap = $("progress");
 const progressBar = $("progress-bar");
 const checkBtn = $("check");
+const clearBtn = $("clear");
+
+// Enable Check and Clear only when there is content. Empty box = nothing to
+// check and nothing to clear, so both are disabled (dimmed, dashed, not-allowed).
+// Clear stays usable while a check runs; Check is disabled while busy or empty.
+let running = false;
+function syncControls() {
+  const hasContent = input.value.trim().length > 0;
+  checkBtn.disabled = running || !hasContent;
+  clearBtn.disabled = !hasContent;
+}
+input.addEventListener("input", syncControls);
 
 const MAX_PLUGINS = 150;
 const CONCURRENCY = 5;
@@ -82,7 +94,8 @@ async function run() {
     (slugs.length > MAX_PLUGINS ? `. Only the first ${MAX_PLUGINS} are checked; split larger lists to stay polite to the API.` : ".");
   progressWrap.hidden = false;
   progressBar.style.width = "0%";
-  checkBtn.disabled = true;
+  running = true;
+  syncControls();
 
   const rows = list.map(slug => {
     const tr = document.createElement("tr");
@@ -123,7 +136,8 @@ async function run() {
   if (!chips.length) chips.push(`<span class="chip ok"><strong>All ${list.length}</strong> look healthy</span>`);
   else if (ok) chips.push(`<span class="chip"><strong>${ok}</strong> healthy</span>`);
   summary.innerHTML = chips.join("");
-  checkBtn.disabled = false;
+  running = false;
+  syncControls();
 }
 
 checkBtn.addEventListener("click", run);
@@ -151,7 +165,8 @@ pasteBtn.addEventListener("click", async () => {
   setTimeout(() => { pasteBtn.textContent = prev; }, 2400);
 });
 
-$("clear").addEventListener("click", () => { input.value = ""; results.hidden = true; input.focus(); });
+clearBtn.addEventListener("click", () => { input.value = ""; results.hidden = true; syncControls(); input.focus(); });
+syncControls();
 
 fetchCurrentVersion().then(() => {
   if (new URLSearchParams(location.search).has("demo")) loadSample();
