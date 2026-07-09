@@ -9,7 +9,7 @@ Paste your WordPress plugins and check each against WordPress.org: removed from 
 </p>
 
 <a href="https://jaydenyoonzk.github.io/wp-plugin-checkup/?demo">
-  <img src="docs/assets/preview.png" alt="WP Plugin Checkup flagging a plugin missing from the WordPress.org directory while confirming several healthy ones with live version and install data" width="100%">
+  <img src="docs/assets/preview.png" alt="WP Plugin Checkup shown in light and dark themes, the hero with its illustration flagging a removed plugin, a stale one, and a healthy one" width="100%">
 </a>
 
 **[Open the live tool](https://jaydenyoonzk.github.io/wp-plugin-checkup/)** or **[see it check a sample](https://jaydenyoonzk.github.io/wp-plugin-checkup/?demo)**.
