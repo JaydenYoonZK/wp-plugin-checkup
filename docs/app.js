@@ -21,6 +21,7 @@ function syncControls() {
   const hasContent = input.value.trim().length > 0;
   checkBtn.disabled = running || !hasContent;
   clearBtn.disabled = !hasContent;
+  $("paste").classList.toggle("primary", !hasContent);
 }
 input.addEventListener("input", syncControls);
 
