@@ -134,10 +134,10 @@
     <label for="input" style="display:none">Plugin list</label>
     <textarea id="input" placeholder="Paste plugin slugs, folder/file.php paths, or wordpress.org plugin URLs, one per line..." spellcheck="false" style="min-height:150px; font-family: var(--mono); font-size: 0.9rem;"></textarea>
     <div class="toolbar">
-      <button id="check" disabled class="primary" type="button">Check plugins</button>
-      <button id="paste" type="button">Paste &amp; check</button>
-      <button id="sample" type="button">Try a sample</button>
-      <button id="clear" disabled type="button">Clear</button>
+      <button id="check" disabled class="primary" type="button" data-tip="Check each plugin against the WordPress.org directory" data-tip-off="Paste or type some plugin slugs first">Check plugins</button>
+      <button id="paste" type="button" data-tip="Paste from your clipboard and check it right away">Paste &amp; check</button>
+      <button id="sample" type="button" data-tip="Load an example list to try it">Try a sample</button>
+      <button id="clear" disabled type="button" data-tip="Clear the box and start over" data-tip-off="Nothing to clear yet">Clear</button>
       <span class="spacer"></span>
       <span class="charcount" id="wp-version"></span>
     </div>
