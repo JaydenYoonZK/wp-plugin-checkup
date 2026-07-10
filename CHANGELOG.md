@@ -3,6 +3,12 @@
 All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.1.9] - 2026-07-10
+
+### Fixed
+
+- The back-to-top button no longer casts a heavy black smudge in light mode. Its shadow was a single wide dark-theme blur that was never re-tuned for a cream background. Each theme now gets a layered shadow of its own: a tight warm contact shadow plus a soft chartreuse halo in light mode, and a grounded contact shadow with a gentle chartreuse under-glow in dark, with matching hover and pressed variants.
+
 ## [1.1.8] - 2026-07-10
 
 ### Changed
@@ -140,6 +146,7 @@ First stable release.
 - Dependency-free ES module engine (docs/checkup.js) with 13 Node tests.
 - Browser UI in the shared suite design with light and dark themes and a ?demo deep link.
 
+[1.1.9]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.1.9
 [1.1.8]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.1.8
 [1.1.7]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.1.7
 [1.1.6]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.1.6
