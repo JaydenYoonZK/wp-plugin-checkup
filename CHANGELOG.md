@@ -3,6 +3,16 @@
 All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.1.12] - 2026-07-10
+
+### Fixed
+
+- The inline code chip inside alerts no longer renders as a dead grey block in light mode. Its 35% black wash was tuned for dark backgrounds; over the light pink alert it read as mud. In light mode the chip is now a crisp near-white card with a hairline red keyline, so the decoded payload stands out cleanly.
+
+### Changed
+
+- Switching themes now fades the whole page between night and day over half a second instead of snapping instantly, which could startle or dazzle, especially dark to light at night. The fade covers colors only (backgrounds, text, borders, shadows, SVG fills), and the theme toggle is excluded so its sun and moon morph keeps its own spring timing.
+
 ## [1.1.11] - 2026-07-10
 
 ### Fixed
@@ -159,6 +169,7 @@ First stable release.
 - Dependency-free ES module engine (docs/checkup.js) with 13 Node tests.
 - Browser UI in the shared suite design with light and dark themes and a ?demo deep link.
 
+[1.1.12]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.1.12
 [1.1.11]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.1.11
 [1.1.10]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.1.10
 [1.1.9]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.1.9
