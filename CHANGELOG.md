@@ -3,6 +3,12 @@
 All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.1.11] - 2026-07-10
+
+### Fixed
+
+- The theme toggle now shows the crescent moon on phones. The previous build morphed the mark by animating SVG geometry (the circle's radius and the mask position) from CSS, which desktop browsers support but iOS Safari does not apply, so dark mode on a phone showed a plain dot instead of a moon. The switch is rebuilt on opacity and transform only, the sun spins away as a true crescent path spins in, which every mobile browser animates. Same look on desktop, now correct everywhere.
+
 ## [1.1.10] - 2026-07-10
 
 ### Changed
@@ -153,6 +159,7 @@ First stable release.
 - Dependency-free ES module engine (docs/checkup.js) with 13 Node tests.
 - Browser UI in the shared suite design with light and dark themes and a ?demo deep link.
 
+[1.1.11]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.1.11
 [1.1.10]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.1.10
 [1.1.9]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.1.9
 [1.1.8]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.1.8
