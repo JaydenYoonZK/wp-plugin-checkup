@@ -3,6 +3,12 @@
 All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.1.23] - 2026-07-11
+
+### Changed
+
+- The film grain is finer and milder. Each grain dot is now half its previous size, one device pixel on typical phone screens, and the overall intensity is reduced by about a quarter in both themes. Finer grain dithers banding more efficiently per unit of opacity, so gradients stay smooth while the texture recedes to a whisper. README previews regenerated.
+
 ## [1.1.22] - 2026-07-11
 
 ### Fixed
@@ -233,6 +239,7 @@ First stable release.
 - Dependency-free ES module engine (docs/checkup.js) with 13 Node tests.
 - Browser UI in the shared suite design with light and dark themes and a ?demo deep link.
 
+[1.1.23]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.1.23
 [1.1.22]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.1.22
 [1.1.21]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.1.21
 [1.1.20]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.1.20
