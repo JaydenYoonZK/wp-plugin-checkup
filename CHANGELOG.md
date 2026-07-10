@@ -3,6 +3,12 @@
 All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.1.17] - 2026-07-10
+
+### Added
+
+- A whisper of film grain now sits over the whole page in both themes. Large soft gradients band into visible steps on most displays; the static monochrome noise dithers those steps away and gives the surface a subtle print-like tooth. It is one tiled SVG turbulence texture with no blend mode and no animation, so it composites for free, stays out of pointer input, and is dropped entirely in print. README previews are regenerated with the new surface.
+
 ## [1.1.16] - 2026-07-10
 
 ### Fixed
@@ -194,6 +200,7 @@ First stable release.
 - Dependency-free ES module engine (docs/checkup.js) with 13 Node tests.
 - Browser UI in the shared suite design with light and dark themes and a ?demo deep link.
 
+[1.1.17]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.1.17
 [1.1.16]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.1.16
 [1.1.15]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.1.15
 [1.1.14]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.1.14
