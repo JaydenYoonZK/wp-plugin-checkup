@@ -3,6 +3,12 @@
 All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.2.16] - 2026-07-12
+
+### Added
+
+- The page now loads offline. A small service worker caches the shell on the first visit, answers repeat visits from cache while refreshing in the background, and drops old caches on every release. Live lookups still need a connection and pass through the worker untouched.
+
 ## [1.2.15] - 2026-07-11
 
 ### Changed
@@ -365,6 +371,7 @@ First stable release.
 - Dependency-free ES module engine (docs/checkup.js) with 13 Node tests.
 - Browser UI in the shared suite design with light and dark themes and a ?demo deep link.
 
+[1.2.16]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.2.16
 [1.2.15]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.2.15
 [1.2.14]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.2.14
 [1.2.13]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.2.13
