@@ -11,12 +11,19 @@
 
 export const ABANDONED_MONTHS = 24;
 export const STALE_MONTHS = 12;
-export const LOW_INSTALLS = 1000;
+export const LOW_INSTALLS = 1000; // Legacy export. Install count no longer changes verdicts.
+export const MAX_INPUT_LENGTH = 1024 * 1024;
+export const MAX_PARSED_SLUGS = 10000;
+
+const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const HEADER_NAMES = new Set(["name", "title", "slug", "status", "plugin"]);
+const WPCLI_STATUSES = new Set(["active", "active-network", "inactive", "must-use", "dropin"]);
 
 /* ----------------------------- parsing ----------------------------- */
 
 /** Extract a plugin slug from one line of pasted input, or null. */
 export function slugFromLine(line) {
+  if (typeof line !== "string") return null;
   let s = line.trim();
   if (!s || s.startsWith("#") || s.startsWith("//")) return null;
 
@@ -29,44 +36,89 @@ export function slugFromLine(line) {
     if (!s) return null;
   }
 
-  // wordpress.org plugin URL
-  const urlMatch = s.match(/wordpress\.org\/plugins\/([a-z0-9-]+)/i);
-  if (urlMatch) return urlMatch[1].toLowerCase();
+  if (/^https?:\/\//i.test(s)) {
+    try {
+      const url = new URL(s);
+      const host = url.hostname.toLowerCase();
+      if (host !== "wordpress.org" && !host.endsWith(".wordpress.org")) return null;
+      const parts = url.pathname.split("/").filter(Boolean);
+      const index = parts.indexOf("plugins");
+      s = index !== -1 ? parts[index + 1] || "" : "";
+    } catch { return null; }
+  } else {
+    s = s.replace(/\\/g, "/");
+    const pluginPath = /(?:^|\/)wp-content\/plugins\/([^/]+)/i.exec(s);
+    if (pluginPath) s = pluginPath[1];
+    else if (s.includes("/")) s = s.split("/").filter(Boolean)[0] || "";
+  }
 
-  // Any other URL is not a directory plugin
-  if (/^https?:\/\//i.test(s)) return null;
-
-  // folder/file.php  ->  folder
-  if (s.includes("/")) s = s.split("/")[0];
-
-  // comma / space / remaining pipe separated: take the first non-empty token
-  s = s.split(/[\s,|]+/).find(t => t) || "";
+  s = s.split(/[\s|]+/).find(t => t) || "";
 
   // strip a trailing .php just in case
   s = s.replace(/\.php$/i, "");
 
   // valid plugin slugs are lowercase letters, numbers, and hyphens
   s = s.toLowerCase();
-  if (!/^[a-z0-9][a-z0-9-]*$/.test(s)) return null;
+  if (!SLUG_RE.test(s)) return null;
   // skip the WP-CLI header row's column name
-  if (["name", "title", "slug", "status", "plugin"].includes(s)) return null;
+  if (HEADER_NAMES.has(s)) return null;
   return s;
+}
+
+function csvFields(line) {
+  const fields = [];
+  let value = "";
+  let quoted = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === '"') {
+      if (quoted && line[i + 1] === '"') { value += '"'; i++; }
+      else quoted = !quoted;
+    } else if (c === "," && !quoted) {
+      fields.push(value.trim()); value = "";
+    } else value += c;
+  }
+  if (quoted) return null;
+  fields.push(value.trim());
+  return fields;
+}
+
+function jsonSlugs(input) {
+  const trimmed = input.trim();
+  if (!trimmed.startsWith("[")) return null;
+  try {
+    const data = JSON.parse(trimmed);
+    if (!Array.isArray(data)) return null;
+    return data.map((item) => {
+      if (typeof item === "string") return item;
+      if (item && typeof item === "object") return item.name ?? item.slug ?? item.file ?? "";
+      return "";
+    });
+  } catch { return null; }
 }
 
 /** Parse a whole pasted blob into a unique, ordered list of slugs. */
 export function parseSlugs(input) {
+  if (typeof input !== "string") throw new TypeError("plugin list must be a string");
+  if (input.length > MAX_INPUT_LENGTH) throw new RangeError("plugin list exceeds 1 MiB");
   const seen = new Set();
   const out = [];
-  for (const line of input.split(/\r?\n/)) {
-    // A pipe row is a WP-CLI table (the slug is its first cell). Any other line
-    // may be a comma-and-space separated list, so split it into items. The split
-    // requires whitespace after the comma so that tight CSV output like
-    // "akismet,active,none,5.7" is left whole and its columns are not mistaken
-    // for plugin slugs; slugFromLine still takes the first token of that line.
-    const items = line.includes("|") ? [line] : line.split(/,\s+/);
+  const json = jsonSlugs(input);
+  const lines = json ?? input.split(/\r?\n/);
+  for (const line of lines) {
+    let items = [String(line)];
+    if (!json && !line.includes("|") && line.includes(",")) {
+      const fields = csvFields(line);
+      if (fields) {
+        const first = fields[0].replace(/^"|"$/g, "").toLowerCase();
+        const second = fields[1]?.toLowerCase();
+        items = HEADER_NAMES.has(first) || WPCLI_STATUSES.has(second) ? [fields[0]] : fields;
+      }
+    }
     for (const item of items) {
       const slug = slugFromLine(item);
       if (slug && !seen.has(slug)) { seen.add(slug); out.push(slug); }
+      if (out.length >= MAX_PARSED_SLUGS) return out;
     }
   }
   return out;
@@ -79,7 +131,10 @@ export function parseUpdated(str) {
   if (!str) return null;
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(str);
   if (!m) return null;
-  return Date.UTC(+m[1], +m[2] - 1, +m[3]);
+  const year = +m[1], month = +m[2], day = +m[3];
+  const timestamp = Date.UTC(year, month - 1, day);
+  const date = new Date(timestamp);
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day ? timestamp : null;
 }
 
 /** Parse a WordPress version into {major, minor}. A WP "major" release is the
@@ -87,7 +142,7 @@ export function parseUpdated(str) {
  *  different majors. Patch (6.4.1) and anything after is ignored. */
 export function parseWpVersion(v) {
   if (v == null) return null;
-  const m = /^(\d+)(?:\.(\d+))?/.exec(String(v));
+  const m = /^\s*(\d+)(?:\.(\d+))?(?:\.\d+)?(?:[-+][0-9A-Za-z.-]+)?\s*$/.exec(String(v));
   return m ? { major: +m[1], minor: m[2] ? +m[2] : 0 } : null;
 }
 
@@ -109,17 +164,37 @@ export function monthsBetween(then, now) {
 }
 
 export function apiUrl(slug) {
+  if (!SLUG_RE.test(String(slug))) throw new TypeError("invalid WordPress.org plugin slug");
   const p = new URLSearchParams();
   p.set("action", "plugin_information");
   p.set("request[slug]", slug);
-  p.set("request[fields][sections]", "false");
-  p.set("request[fields][screenshots]", "false");
-  p.set("request[fields][versions]", "false");
+  for (const field of ["sections", "screenshots", "versions", "description", "short_description", "banners", "icons", "contributors", "ratings", "downloaded", "downloadlink", "donate_link"]) {
+    p.set(`request[fields][${field}]`, "0");
+  }
   return "https://api.wordpress.org/plugins/info/1.2/?" + p.toString();
 }
 
 export function directoryUrl(slug) {
+  if (!SLUG_RE.test(String(slug))) throw new TypeError("invalid WordPress.org plugin slug");
   return `https://wordpress.org/plugins/${slug}/`;
+}
+
+/** Normalize a WordPress.org plugin-information API response. */
+export function pluginInfoFromApi(data, { ok = true, status = 200 } = {}) {
+  if (status === 404 && data?.error === "Plugin not found.") return { exists: false };
+  if (!ok || !data || typeof data !== "object" || data.error || typeof data.slug !== "string") {
+    return { error: "api" };
+  }
+  return {
+    exists: true,
+    name: typeof data.name === "string" ? data.name : undefined,
+    version: typeof data.version === "string" ? data.version : undefined,
+    last_updated: typeof data.last_updated === "string" ? data.last_updated : undefined,
+    tested: typeof data.tested === "string" ? data.tested : undefined,
+    active_installs: typeof data.active_installs === "number" ? data.active_installs : undefined,
+    rating: typeof data.rating === "number" ? data.rating : undefined,
+    num_ratings: typeof data.num_ratings === "number" ? data.num_ratings : undefined
+  };
 }
 
 /* ----------------------------- verdict ----------------------------- */
@@ -132,21 +207,21 @@ const LEVEL_ORDER = { removed: 0, abandoned: 1, outdated: 2, error: 3, ok: 4 };
  * ctx:  { now, currentVersion }
  */
 export function verdict(slug, info, ctx) {
-  const now = ctx.now;
+  const now = Number.isFinite(ctx?.now) ? ctx.now : Date.now();
 
-  if (info && info.error === "network") {
-    return { slug, level: "error", label: "Could not check", detail: "Network error reaching WordPress.org. Try again in a moment." };
+  if (info?.error) {
+    return { slug, level: "error", label: "Could not check", detail: "WordPress.org did not return usable plugin information. Try again in a moment." };
   }
   if (!info || !info.exists) {
     return {
       slug, level: "removed", label: "Not in the directory",
-      detail: "WordPress.org has no such plugin. It may have been removed from the directory, which often means an unresolved security or guideline problem, or it is a premium or custom plugin. If you did not install it deliberately from a trusted source, treat this as urgent."
+      detail: "No matching public listing was found. This can mean a custom or commercial plugin, an incorrect slug, or a directory plugin that was closed. Confirm the plugin's source and support status manually."
     };
   }
 
   const updated = parseUpdated(info.last_updated);
   const months = updated ? monthsBetween(updated, now) : null;
-  const currentVersion = ctx.currentVersion ?? ctx.currentMajor;
+  const currentVersion = ctx?.currentVersion ?? ctx?.currentMajor;
   const behind = testedVersionsBehind(info.tested, currentVersion);
   const flags = [];
 
@@ -154,16 +229,17 @@ export function verdict(slug, info, ctx) {
     return {
       slug, level: "abandoned", label: "Abandoned",
       name: info.name,
-      detail: `No update in about ${Math.round(months)} months. Unmaintained plugins are the most common way WordPress sites get compromised. Look for an actively maintained alternative.`,
+      detail: `No update in about ${Math.round(months)} months. Maintenance appears inactive, so compatibility and future fixes are uncertain. Check the support history and consider a maintained alternative.`,
       meta: metaLine(info, behind)
     };
   }
 
   if (months !== null && months >= STALE_MONTHS) flags.push(`last updated about ${Math.round(months)} months ago`);
-  if (behind !== null && behind >= 2) flags.push(`only tested up to WordPress ${info.tested}`);
-  if (typeof info.active_installs === "number" && info.active_installs > 0 && info.active_installs < LOW_INSTALLS) {
-    flags.push(`${info.active_installs.toLocaleString()} active installs`);
-  }
+  if (updated === null) flags.push("last-update date unavailable");
+  if (!info.tested) flags.push("tested-up-to version unavailable");
+  else if (currentVersion == null) flags.push("current WordPress version unavailable for comparison");
+  else if (behind === null) flags.push("tested-up-to version could not be compared");
+  else if (behind >= 2) flags.push(`only tested up to WordPress ${info.tested}`);
 
   if (flags.length) {
     return {
