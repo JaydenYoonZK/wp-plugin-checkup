@@ -3,6 +3,12 @@
 All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.2.3] - 2026-07-11
+
+### Changed
+
+- The scrollbar now carries the brand. The thumb is a glowing chartreuse key-cap pill with the same top-lit gradient the buttons use, riding a faint chartreuse center rail. It brightens and thickens under the pointer and charges up with a hotter gradient and stronger glow while being dragged. Firefox shows a solid chartreuse thumb through the standard scrollbar properties.
+
 ## [1.2.2] - 2026-07-11
 
 ### Added
@@ -286,6 +292,7 @@ First stable release.
 - Dependency-free ES module engine (docs/checkup.js) with 13 Node tests.
 - Browser UI in the shared suite design with light and dark themes and a ?demo deep link.
 
+[1.2.3]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.2.3
 [1.2.2]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.2.2
 [1.2.1]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.2.1
 [1.2.0]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.2.0
