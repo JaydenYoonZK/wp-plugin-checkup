@@ -3,6 +3,12 @@
 All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.2.11] - 2026-07-11
+
+### Changed
+
+- Social sharing metadata carries explicit X and Twitter titles and descriptions, matching the other tools in the suite.
+
 ## [1.2.10] - 2026-07-11
 
 ### Fixed
@@ -335,6 +341,7 @@ First stable release.
 - Dependency-free ES module engine (docs/checkup.js) with 13 Node tests.
 - Browser UI in the shared suite design with light and dark themes and a ?demo deep link.
 
+[1.2.11]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.2.11
 [1.2.10]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.2.10
 [1.2.9]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.2.9
 [1.2.8]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.2.8
