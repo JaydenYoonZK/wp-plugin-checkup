@@ -1,0 +1,16 @@
+# WP Plugin Checkup
+
+> Check a WordPress plugin list against WordPress.org for removed, abandoned, and untested plugins, right in the browser.
+
+## Tool
+
+- [WP Plugin Checkup](https://jaydenyoonzk.github.io/wp-plugin-checkup/): the tool itself, a static page that runs entirely in the browser with no accounts and no data collection
+
+## Documentation
+
+- [README](https://github.com/JaydenYoonZK/wp-plugin-checkup#readme): what the tool does, how it works, and its engineering notes
+- [Changelog](https://github.com/JaydenYoonZK/wp-plugin-checkup/blob/main/CHANGELOG.md): dated release history
+
+## Source
+
+- [Repository](https://github.com/JaydenYoonZK/wp-plugin-checkup): MIT licensed source code
