@@ -3,6 +3,12 @@
 All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.2.2] - 2026-07-11
+
+### Added
+
+- Custom scrollbars, on the page and inside any scrollable box such as the paste areas and code snippets. A slim rounded pill floats on a fully transparent track in each theme's surface tone, thickens and brightens under the pointer, and turns chartreuse while being dragged, the same accent the buttons use. WebKit browsers get the full treatment and Firefox gets the matching thin themed scrollbar through the standard properties.
+
 ## [1.2.1] - 2026-07-11
 
 ### Added
@@ -280,6 +286,7 @@ First stable release.
 - Dependency-free ES module engine (docs/checkup.js) with 13 Node tests.
 - Browser UI in the shared suite design with light and dark themes and a ?demo deep link.
 
+[1.2.2]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.2.2
 [1.2.1]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.2.1
 [1.2.0]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.2.0
 [1.1.25]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.1.25
