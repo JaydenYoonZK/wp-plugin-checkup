@@ -1,4 +1,4 @@
-import { parseSlugs, apiUrl, directoryUrl, pluginInfoFromApi, verdict, parseWpVersion } from "./checkup.js?v=1.2.9";
+import { parseSlugs, apiUrl, directoryUrl, pluginInfoFromApi, verdict, parseWpVersion } from "./checkup.js?v=1.2.10";
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
@@ -86,7 +86,7 @@ function rowHtml(slug, v) {
   const pill = `<span class="pill ${level}">${LABEL[level] ?? level}</span>`;
   const name = v && v.name ? `<span class="pname">${esc(v.name)}</span><div class="pmeta">${esc(v.meta || "")}</div>` : "";
   const detail = v ? esc(v.detail) : "checking WordPress.org...";
-  const link = ` <a href="${directoryUrl(slug)}" rel="noopener" target="_blank">directory</a>`;
+  const link = ` <a class="doclink" href="${directoryUrl(slug)}" rel="noopener" target="_blank">directory</a>`;
   return `<td class="plug">${esc(slug)}${name ? "<br>" + name : ""}</td>
     <td>${pill}</td>
     <td><span class="detail">${detail}</span>${v && v.level !== "removed" && v.level !== "checking" ? link : ""}</td>`;

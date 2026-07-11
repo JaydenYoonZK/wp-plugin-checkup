@@ -1,6 +1,6 @@
 {
   "name": "wp-plugin-checkup",
-  "version": "1.2.9",
+  "version": "1.2.10",
   "description": "Check WordPress plugins against WordPress.org for removed, abandoned, and untested ones. Browser-based, no dependencies.",
   "type": "module",
   "private": true,

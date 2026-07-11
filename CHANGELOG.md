@@ -3,6 +3,13 @@
 All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.2.10] - 2026-07-11
+
+### Fixed
+
+- A disabled primary button no longer blends the pressed-key look with the dashed disabled outline. The primary styling outranked the disabled state, so buttons such as a not-yet-usable submit looked clickable and not clickable at once, with light mode even painting the full chartreuse key under the dashes. Disabled primaries now render as a flat ghost in both themes.
+- The "directory" links in the results table carry a small open-in-new icon, so they read as something that opens.
+
 ## [1.2.9] - 2026-07-11
 
 ### Fixed
@@ -328,6 +335,7 @@ First stable release.
 - Dependency-free ES module engine (docs/checkup.js) with 13 Node tests.
 - Browser UI in the shared suite design with light and dark themes and a ?demo deep link.
 
+[1.2.10]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.2.10
 [1.2.9]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.2.9
 [1.2.8]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.2.8
 [1.2.7]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.2.7
