@@ -3,6 +3,12 @@
 All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.2.9] - 2026-07-11
+
+### Fixed
+
+- Tables are readable on phones. The old narrow-screen treatment turned tables into sideways-scrolling boxes with no hint that more columns existed, so status pills were chopped mid-word and explanation columns sat invisible off-screen. Rows now restack as cards on narrow screens: names and pills flow on one line, the explanation wraps at full width beneath them, decorative header rows step aside, and nothing scrolls sideways.
+
 ## [1.2.8] - 2026-07-11
 
 ### Changed
@@ -322,6 +328,7 @@ First stable release.
 - Dependency-free ES module engine (docs/checkup.js) with 13 Node tests.
 - Browser UI in the shared suite design with light and dark themes and a ?demo deep link.
 
+[1.2.9]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.2.9
 [1.2.8]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.2.8
 [1.2.7]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.2.7
 [1.2.6]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.2.6
