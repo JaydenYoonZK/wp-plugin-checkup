@@ -1,4 +1,4 @@
-import { parseSlugs, apiUrl, directoryUrl, verdict, parseWpVersion } from "./checkup.js?v=20260711x";
+import { parseSlugs, apiUrl, directoryUrl, pluginInfoFromApi, verdict, parseWpVersion } from "./checkup.js?v=1.2.0";
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
@@ -26,15 +26,32 @@ input.addEventListener("input", syncControls);
 
 const MAX_PLUGINS = 150;
 const CONCURRENCY = 5;
+const REQUEST_TIMEOUT_MS = 12000;
 
-let currentVersion = "6.7"; // fallback; refreshed from WordPress.org on load
+let currentVersion = null;
 let nowMs = Date.UTC(2026, 6, 7); // fallback; replaced with real clock at runtime
+let runId = 0;
+let activeRun = null;
 
 const LABEL = { removed: "GONE", abandoned: "ABANDONED", outdated: "CHECK", ok: "HEALTHY", error: "RETRY", checking: "…" };
 
+async function timedFetch(url, options = {}, parentSignal) {
+  const controller = new AbortController();
+  const relayAbort = () => controller.abort();
+  if (parentSignal?.aborted) controller.abort();
+  else parentSignal?.addEventListener("abort", relayAbort, { once: true });
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+    parentSignal?.removeEventListener("abort", relayAbort);
+  }
+}
+
 async function fetchCurrentVersion() {
   try {
-    const res = await fetch("https://api.wordpress.org/core/stable-check/1.0/");
+    const res = await timedFetch("https://api.wordpress.org/core/stable-check/1.0/");
     if (!res.ok) return;
     const data = await res.json();
     const latest = Object.entries(data).filter(([, s]) => s === "latest").map(([v]) => v);
@@ -49,24 +66,16 @@ async function fetchCurrentVersion() {
       });
       $("wp-version").textContent = `current WordPress: ${currentVersion}`;
     }
-  } catch { /* keep fallback */ }
+  } catch { /* show the unavailable state below */ }
+  if (!currentVersion) $("wp-version").textContent = "current WordPress version unavailable";
 }
 
-async function fetchInfo(slug) {
+async function fetchInfo(slug, signal) {
   try {
-    const res = await fetch(apiUrl(slug), { headers: { Accept: "application/json" } });
-    // The API returns 404 with {"error":"Plugin not found."} for missing
-    // plugins, so read the body before deciding it was a transport failure.
+    const res = await timedFetch(apiUrl(slug), { headers: { Accept: "application/json" } }, signal);
     let data = null;
     try { data = await res.json(); } catch { /* non-JSON body */ }
-    if (data && data.error) return { exists: false };
-    if (!res.ok || !data) return { error: "network" };
-    return {
-      exists: true,
-      name: data.name, version: data.version, last_updated: data.last_updated,
-      tested: data.tested, active_installs: data.active_installs,
-      rating: data.rating, num_ratings: data.num_ratings
-    };
+    return pluginInfoFromApi(data, { ok: res.ok, status: res.status });
   } catch {
     return { error: "network" };
   }
@@ -84,16 +93,34 @@ function rowHtml(slug, v) {
 }
 
 async function run() {
+  activeRun?.abort();
+  running = false;
+  const id = ++runId;
+  const controller = new AbortController();
+  activeRun = controller;
   syncControls();
   nowMs = Date.now();
-  const slugs = parseSlugs(input.value);
+  let slugs;
+  try {
+    slugs = parseSlugs(input.value);
+  } catch (error) {
+    running = false;
+    activeRun = null;
+    syncControls();
+    results.hidden = false;
+    kindNote.textContent = error instanceof Error ? error.message : "Could not read that plugin list.";
+    progressWrap.hidden = true;
+    return;
+  }
   tbody.innerHTML = "";
   summary.innerHTML = "";
   results.hidden = false;
+  results.setAttribute("aria-busy", "false");
 
   if (!slugs.length) {
     kindNote.textContent = "No plugin slugs found. Paste plugin names, folder/file.php paths, or wordpress.org plugin URLs.";
     progressWrap.hidden = true;
+    activeRun = null;
     return;
   }
 
@@ -102,6 +129,8 @@ async function run() {
     (slugs.length > MAX_PLUGINS ? `. Only the first ${MAX_PLUGINS} are checked; split larger lists to stay polite to the API.` : ".");
   progressWrap.hidden = false;
   progressBar.style.width = "0%";
+  progressWrap.setAttribute("aria-valuenow", "0");
+  results.setAttribute("aria-busy", "true");
   running = true;
   syncControls();
 
@@ -117,17 +146,21 @@ async function run() {
   let done = 0;
 
   async function worker() {
-    while (queue.length) {
+    while (queue.length && id === runId && !controller.signal.aborted) {
       const { slug, i } = queue.shift();
-      const info = await fetchInfo(slug);
+      const info = await fetchInfo(slug, controller.signal);
+      if (id !== runId || controller.signal.aborted) return;
       const v = verdict(slug, info, { now: nowMs, currentVersion });
       verdicts[i] = v;
       rows[i].innerHTML = rowHtml(slug, v);
       done++;
-      progressBar.style.width = `${Math.round(done / list.length * 100)}%`;
+      const percent = Math.round(done / list.length * 100);
+      progressBar.style.width = `${percent}%`;
+      progressWrap.setAttribute("aria-valuenow", String(percent));
     }
   }
   await Promise.all(Array.from({ length: CONCURRENCY }, worker));
+  if (id !== runId || controller.signal.aborted) return;
 
   // reorder rows by severity
   const indexed = rows.map((tr, i) => ({ tr, level: verdicts[i]?.level ?? "error" }));
@@ -140,11 +173,14 @@ async function run() {
   if (count("removed")) chips.push(`<span class="chip red"><strong>${count("removed")}</strong> not in the directory</span>`);
   if (count("abandoned")) chips.push(`<span class="chip red"><strong>${count("abandoned")}</strong> abandoned</span>`);
   if (count("outdated")) chips.push(`<span class="chip amber"><strong>${count("outdated")}</strong> worth a look</span>`);
+  if (count("error")) chips.push(`<span class="chip"><strong>${count("error")}</strong> could not be checked</span>`);
   const ok = count("ok");
-  if (!chips.length) chips.push(`<span class="chip ok"><strong>All ${list.length}</strong> look healthy</span>`);
+  if (ok === list.length) chips.push(`<span class="chip ok"><strong>All ${list.length}</strong> look healthy</span>`);
   else if (ok) chips.push(`<span class="chip"><strong>${ok}</strong> healthy</span>`);
   summary.innerHTML = chips.join("");
   running = false;
+  activeRun = null;
+  results.setAttribute("aria-busy", "false");
   syncControls();
 }
 
@@ -198,7 +234,20 @@ input.addEventListener("paste", () => {
   setTimeout(run, 0); // let the pasted text land first
 });
 
-clearBtn.addEventListener("click", () => { input.value = ""; results.hidden = true; syncControls(); input.focus(); });
+clearBtn.addEventListener("click", () => {
+  activeRun?.abort();
+  activeRun = null;
+  runId++;
+  running = false;
+  input.value = "";
+  tbody.innerHTML = "";
+  summary.innerHTML = "";
+  progressWrap.hidden = true;
+  results.hidden = true;
+  results.setAttribute("aria-busy", "false");
+  syncControls();
+  input.focus();
+});
 syncControls();
 
 fetchCurrentVersion().then(() => {

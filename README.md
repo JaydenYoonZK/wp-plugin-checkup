@@ -1,6 +1,6 @@
 # WP Plugin Checkup ✅
 
-Paste your WordPress plugins and check each against WordPress.org: removed from the directory, abandoned, or untested with current WordPress. The plugins you forgot about are the ones that get you hacked. Runs in your browser.
+Paste WordPress plugin slugs and review their public WordPress.org maintenance and compatibility metadata. Runs in your browser and does not connect to your site.
 
 <p>
   <a href="https://jaydenyoonzk.github.io/wp-plugin-checkup/"><img src="https://img.shields.io/badge/Live%20tool-open-abcf37?style=for-the-badge&logo=githubpages&logoColor=black" alt="Open the live tool"></a>
@@ -17,10 +17,10 @@ Paste your WordPress plugins and check each against WordPress.org: removed from 
 
 ## Why this exists
 
-Most WordPress compromises are not clever. They come from a plugin with a known, published vulnerability that nobody updated, because nobody remembered it was installed. Two situations deserve immediate attention, and both are invisible from inside wp-admin:
+Plugin installations often outlive the task that introduced them. A public listing can close, updates can stop, or tested-up-to metadata can fall behind while the installed code keeps running. Those are useful review signals, but they are not vulnerability findings.
 
-- **Removed from the directory.** When WordPress.org pulls a plugin, it is often for an unresolved security issue. The plugin keeps running on your site but stops getting updates and vanishes from search, so you may never hear there was a problem.
-- **Abandoned.** A plugin untouched for years is a bet that no vulnerability will ever be found in it, and that bet worsens every month.
+- **No public listing.** This can mean a custom or commercial plugin, an incorrect slug, or a directory plugin that was closed. The plugin-information API does not distinguish those cases.
+- **Long update gap.** Two years without an update is a practical reason to review support history, compatibility, and maintained alternatives.
 
 This tool checks a whole plugin list against the live WordPress.org directory in seconds.
 
@@ -30,10 +30,10 @@ For each plugin it looks up the WordPress.org plugin API and returns a verdict:
 
 | Verdict | Meaning |
 |---|---|
-| **GONE** | Not in the directory. Possibly removed for a security or guideline problem (urgent), or a premium/custom plugin the directory never listed. |
-| **ABANDONED** | No update in roughly two years or more. |
-| **CHECK** | Stale (about a year), only tested against an old WordPress version, or very few installs. |
-| **HEALTHY** | Recently updated and tested with current WordPress. |
+| **GONE** | No matching public listing. Confirm the slug and whether the plugin is custom, commercial, renamed, or closed. |
+| **ABANDONED** | No update in roughly two years or more. Review its support history. |
+| **CHECK** | Stale, tested against an older WordPress release, or missing evidence needed for a confident result. |
+| **HEALTHY** | Recently updated and tested with a current WordPress release. This is not a vulnerability verdict. |
 
 The current WordPress version is fetched live from WordPress.org so "tested against an old version" stays accurate over time.
 
@@ -44,8 +44,10 @@ Any of these, mixed freely, one per line:
 - Plain slugs: `woocommerce`
 - Folder or file paths as WordPress stores them: `woocommerce/woocommerce.php`
 - Directory URLs: `https://wordpress.org/plugins/woocommerce/`
+- WP-CLI CSV and JSON output
+- Full Windows or Unix paths containing `wp-content/plugins/<slug>/`
 
-To get your list: in the dashboard open **Plugins** and copy the names, or run `wp plugin list --field=name` with WP-CLI, or read the folder names in `wp-content/plugins/`.
+The most reliable source is `wp plugin list --field=name`. WP-CLI can perform a related directory check itself with `wp plugin list --fields=name,wporg_status,wporg_last_updated`. Display names copied from the dashboard are not always directory slugs.
 
 ## Privacy
 
@@ -81,7 +83,15 @@ const v = verdict(slug, info, { now: Date.now(), currentVersion: "7.0" });
 npm test
 ```
 
-19 tests cover slug parsing across formats (including comma-separated lists and WP-CLI CSV), the WordPress x.y version comparison, the API date format, and every verdict path against fixed dates.
+27 tests cover table, CSV, JSON, URL, and installed-path parsing; input limits; strict API dates and WordPress versions; API error classification; compatibility gaps; missing evidence; sorting; and every verdict path against fixed dates. Coverage is measured with `npm run test:coverage`.
+
+## Limits
+
+This checks public directory metadata, not installed code, active versions, or known vulnerabilities. The browser checks at most 150 slugs per run with five concurrent requests and a 12-second request timeout. The reusable parser accepts up to 1 MiB and returns at most 10,000 unique slugs. A missing listing does not reveal whether a plugin was private, mistyped, renamed, closed by its author, or closed by WordPress.org.
+
+## Sources
+
+The lookup uses the official [`plugin_information` API](https://developer.wordpress.org/reference/functions/plugins_api/). WordPress documents several [plugin closure reasons](https://developer.wordpress.org/plugins/wordpress-org/alerts-and-warnings/), including author requests, guideline or licensing issues, mergers into core, and security issues. Supported WP-CLI list formats and the `wporg_status` fields are documented by [`wp plugin list`](https://developer.wordpress.org/cli/commands/plugin/list/).
 
 ## A note on scope
 

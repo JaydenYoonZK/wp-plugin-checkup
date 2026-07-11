@@ -5,4 +5,4 @@
 ## Checklist
 
 - [ ] `npm test` passes
-- [ ] Parser or replace changes have a test with the motivating serialized value
+- [ ] Parser, API, or verdict changes have a deterministic regression test

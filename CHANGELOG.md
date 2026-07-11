@@ -3,6 +3,29 @@
 All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.2.0] - 2026-07-11
+
+### Added
+
+- Input parsing now supports quoted WP-CLI CSV, WP-CLI JSON, tight comma lists, localized WordPress.org URLs, and Windows or Unix paths containing `wp-content/plugins`.
+- API responses are normalized in the reusable engine, with separate results for a confirmed 404 plugin-not-found response and other service errors.
+- Requests have a 12-second timeout, overlapping runs cancel cleanly, Clear cancels in-flight work, and progress exposes its current value to assistive technology.
+- Regression coverage now includes malformed dates and versions, hostile URLs, input limits, API outages, missing evidence, and low-install-count neutrality.
+
+### Changed
+
+- A healthy verdict now requires both recent update metadata and a tested-up-to value that can be compared with the current WordPress release.
+- Active-install count remains visible as metadata but no longer changes a maintenance verdict.
+- Missing directory entries are described neutrally because the plugin-information API cannot distinguish private plugins, typos, renames, and directory closures.
+- Direct API field switches use numeric zero, reducing a live Akismet response to 921 bytes while retaining the fields used by the check.
+- CI covers Node.js 20, 22, and 24 on Linux, with Windows and macOS jobs retained.
+
+### Fixed
+
+- An API outage can no longer be reported as either a removed plugin or an all-healthy result.
+- Clearing or replacing a running check no longer lets stale requests rewrite the current result table.
+- Invalid calendar dates and version strings are no longer normalized into plausible maintenance evidence.
+
 ## [1.1.25] - 2026-07-11
 
 ### Fixed
@@ -251,6 +274,7 @@ First stable release.
 - Dependency-free ES module engine (docs/checkup.js) with 13 Node tests.
 - Browser UI in the shared suite design with light and dark themes and a ?demo deep link.
 
+[1.2.0]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.2.0
 [1.1.25]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.1.25
 [1.1.24]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.1.24
 [1.1.23]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.1.23

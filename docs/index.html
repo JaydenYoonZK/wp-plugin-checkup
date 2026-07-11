@@ -11,7 +11,7 @@
   <link rel="canonical" href="https://jaydenyoonzk.github.io/wp-plugin-checkup/">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d0c0a'/%3E%3Ctext x='32' y='45' text-anchor='middle' font-size='34' fill='%23abcf37'%3E%E2%9C%93%3C/text%3E%3C/svg%3E">
   <meta property="og:title" content="WP Plugin Checkup: find abandoned and removed WordPress plugins">
-  <meta property="og:description" content="Check your WordPress plugins against WordPress.org for removed, abandoned, and untested ones. The plugins you forgot about are the ones that get you hacked.">
+  <meta property="og:description" content="Check WordPress.org maintenance and compatibility metadata for a pasted list of plugin slugs.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://jaydenyoonzk.github.io/wp-plugin-checkup/">
   <meta property="og:image" content="https://jaydenyoonzk.github.io/wp-plugin-checkup/assets/preview.png">
@@ -24,7 +24,7 @@
       document.documentElement.dataset.theme = t;
     })();
   </script>
-  <link rel="stylesheet" href="styles.css?v=20260711x">
+  <link rel="stylesheet" href="styles.css?v=1.2.0">
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -167,7 +167,7 @@
 
   <div id="results" hidden>
     <p class="kind-note" id="kind-note"></p>
-    <div class="progress" id="progress" hidden><div id="progress-bar"></div></div>
+    <div class="progress" id="progress" role="progressbar" aria-label="Plugin lookup progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" hidden><div id="progress-bar"></div></div>
     <div class="stats" id="summary" role="status"></div>
     <div class="table-scroll">
       <table class="results-table">
@@ -178,20 +178,20 @@
   </div>
 
   <div class="prose">
-    <h2 id="risk">🚪 Why old plugins are the real risk</h2>
-    <p>Most WordPress compromises do not come from clever attacks. They come from a plugin with a known, published vulnerability that nobody got around to updating, because nobody remembered it was installed. Two situations deserve immediate attention:</p>
+    <h2 id="risk">🚪 Why maintenance status deserves a review</h2>
+    <p>An installed plugin can keep running long after its public listing or maintenance activity changes. This check helps find entries that need a closer look, without claiming to scan the plugin code or a vulnerability database.</p>
     <ul>
-      <li><strong>Removed from the directory.</strong> When WordPress.org pulls a plugin, it is often because of an unresolved security issue. The plugin keeps running on your site, but it stops receiving updates and quietly disappears from search, so you may never learn there was a problem. This tool flags any plugin the directory no longer lists.</li>
-      <li><strong>Abandoned.</strong> A plugin with no update in years is a bet that no vulnerability will ever be found in it, and that bet gets worse every month. WordPress itself warns you about plugins untouched for two or more years.</li>
+      <li><strong>No public listing.</strong> The slug may belong to a custom or commercial plugin, be mistyped, or refer to a directory plugin that was closed. The API does not provide enough information here to infer which case applies.</li>
+      <li><strong>Long update gap.</strong> Two years without an update is a useful maintenance signal. It calls for checking support history, compatibility, and whether a maintained alternative is available.</li>
     </ul>
 
     <h2 id="verdicts">🚦 What the verdicts mean</h2>
     <table>
       <tr><th>Verdict</th><th>Meaning</th></tr>
-      <tr><td><span class="pill removed">GONE</span></td><td>WordPress.org has no such plugin. Possibly removed from the directory (treat as urgent), or a premium or custom plugin the directory never listed.</td></tr>
-      <tr><td><span class="pill abandoned">ABANDONED</span></td><td>No update in roughly two years or more. Find a maintained alternative.</td></tr>
-      <tr><td><span class="pill outdated">CHECK</span></td><td>Stale (about a year since the last update), only tested against an old WordPress version, or very few installs. Usually fine, worth confirming.</td></tr>
-      <tr><td><span class="pill ok">HEALTHY</span></td><td>Recently updated and tested with current WordPress. This is about maintenance, not a security guarantee.</td></tr>
+      <tr><td><span class="pill removed">GONE</span></td><td>No matching public listing. Confirm the slug and whether the plugin is custom, commercial, renamed, or closed.</td></tr>
+      <tr><td><span class="pill abandoned">ABANDONED</span></td><td>No update in roughly two years or more. Review its support history and alternatives.</td></tr>
+      <tr><td><span class="pill outdated">CHECK</span></td><td>About a year since the last update, tested against an older WordPress release, or missing metadata needed for a confident result.</td></tr>
+      <tr><td><span class="pill ok">HEALTHY</span></td><td>Recent update metadata and a current tested-up-to value. This is a maintenance result, not a security guarantee.</td></tr>
     </table>
 
     <h2 id="where">📋 Where to find your plugin list</h2>
@@ -200,12 +200,13 @@
       <li>Plain slugs, the last part of a plugin's directory URL: <code>woocommerce</code></li>
       <li>Folder or file paths as WordPress stores them: <code>woocommerce/woocommerce.php</code></li>
       <li>Directory URLs: <code>https://wordpress.org/plugins/woocommerce/</code></li>
+      <li>WP-CLI CSV or JSON output, including quoted CSV fields.</li>
     </ul>
-    <p>To get the full list from a live site: in the dashboard, open <strong>Plugins</strong> and copy the names, or with WP-CLI run <code>wp plugin list --field=name</code>. Over SFTP, the folder names inside <code>wp-content/plugins/</code> are the slugs.</p>
+    <p>The most reliable command is <code>wp plugin list --field=name</code>. WP-CLI can also report directory status directly with <code>wp plugin list --fields=name,wporg_status,wporg_last_updated</code>. Over SFTP, paste folder paths from <code>wp-content/plugins/</code>. Display names copied from the dashboard are not always the same as directory slugs.</p>
 
     <h2 id="faq">💬 Questions people ask</h2>
     <h3>Does GONE always mean the plugin is dangerous?</h3>
-    <p>No. Premium plugins (many page builders, form tools, and commercial extensions) are sold outside the directory and will always show as GONE here, which is expected. The verdict means only that the public directory does not list it. What matters is whether you recognize the plugin and trust where it came from. An unfamiliar plugin showing GONE is the one to investigate.</p>
+    <p>No. Commercial and custom plugins may never have had a public listing, and a typo produces the same API result as a closed listing. GONE means only that no matching public listing was returned. Confirm the slug, source, and support channel manually.</p>
     <h3>Is my site connected or scanned?</h3>
     <p>No. You paste a list of names; the tool looks each name up in the public WordPress.org plugin API from your browser. It never touches your site, needs no login, and sends nothing except the plugin slugs it has to look up.</p>
     <h3>A healthy plugin still had a vulnerability once. Does this catch that?</h3>
@@ -227,6 +228,6 @@
 </footer>
 
 <button id="to-top" class="to-top" type="button" aria-label="Back to top">&#8593;</button>
-<script type="module" src="app.js?v=20260711x"></script>
+<script type="module" src="app.js?v=1.2.0"></script>
 </body>
 </html>
