@@ -1,3 +1,4 @@
+/*! WP Plugin Checkup | Copyright (c) 2026 Jayden Yoon ZK | MIT License | https://github.com/JaydenYoonZK/wp-plugin-checkup */
 /**
  * wp-plugin-checkup engine
  *
