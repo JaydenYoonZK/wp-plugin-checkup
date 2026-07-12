@@ -3,6 +3,16 @@
 All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.2.24] - 2026-07-12
+
+### Added
+
+- A "Why I built this" story closes the page, paired with the suite's sprout scene and linked from the navigation, matching the sibling tools.
+
+### Changed
+
+- The FAQ heading reads "Frequently asked questions" now.
+
 ## [1.2.23] - 2026-07-12
 
 ### Added
@@ -419,6 +429,7 @@ First stable release.
 - Dependency-free ES module engine (docs/checkup.js) with 13 Node tests.
 - Browser UI in the shared suite design with light and dark themes and a ?demo deep link.
 
+[1.2.24]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.2.24
 [1.2.23]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.2.23
 [1.2.22]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.2.22
 [1.2.21]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.2.21
