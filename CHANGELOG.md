@@ -3,6 +3,12 @@
 All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.2.20] - 2026-07-12
+
+### Added
+
+- Every page, including the 404, now closes with a quiet copyright line in the footer: Copyright © Jayden Yoon ZK with the current year, All Rights Reserved. The year keeps itself current.
+
 ## [1.2.19] - 2026-07-12
 
 ### Added
@@ -390,6 +396,7 @@ First stable release.
 - Dependency-free ES module engine (docs/checkup.js) with 13 Node tests.
 - Browser UI in the shared suite design with light and dark themes and a ?demo deep link.
 
+[1.2.20]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.2.20
 [1.2.19]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.2.19
 [1.2.18]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.2.18
 [1.2.17]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.2.17

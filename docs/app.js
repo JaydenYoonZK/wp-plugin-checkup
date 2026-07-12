@@ -1,5 +1,5 @@
 /*! WP Plugin Checkup | Copyright (c) 2026 Jayden Yoon ZK | MIT License | https://github.com/JaydenYoonZK/wp-plugin-checkup */
-import { parseSlugs, apiUrl, directoryUrl, pluginInfoFromApi, verdict, parseWpVersion } from "./checkup.js?v=1.2.19";
+import { parseSlugs, apiUrl, directoryUrl, pluginInfoFromApi, verdict, parseWpVersion } from "./checkup.js?v=1.2.20";
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
@@ -501,3 +501,7 @@ console.info(
   "background:#abcf37;color:#101400;font-weight:700;padding:2px 8px;border-radius:999px",
   "color:inherit"
 );
+
+// The footer's copyright year keeps itself current.
+const yearEl = document.getElementById("copyright-year");
+if (yearEl) yearEl.textContent = String(new Date().getFullYear());
