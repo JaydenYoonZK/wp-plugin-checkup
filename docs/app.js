@@ -1,5 +1,5 @@
 /*! WP Plugin Checkup | Copyright (c) 2026 Jayden Yoon ZK | MIT License | https://github.com/JaydenYoonZK/wp-plugin-checkup */
-import { parseSlugs, apiUrl, directoryUrl, pluginInfoFromApi, verdict, parseWpVersion } from "./checkup.js?v=1.2.25";
+import { parseSlugs, apiUrl, directoryUrl, pluginInfoFromApi, verdict, parseWpVersion } from "./checkup.js?v=1.2.26";
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
@@ -515,3 +515,11 @@ document.querySelectorAll(".faq-q button").forEach((btn) => {
     btn.setAttribute("aria-expanded", String(open));
   });
 });
+
+// The nav lifts with a soft shadow once the page scrolls beneath it.
+const navBar = document.querySelector(".site-nav");
+if (navBar) {
+  const syncNavShadow = () => navBar.classList.toggle("scrolled", scrollY > 8);
+  addEventListener("scroll", syncNavShadow, { passive: true });
+  syncNavShadow();
+}
