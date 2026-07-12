@@ -3,6 +3,12 @@
 All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.2.29] - 2026-07-12
+
+### Fixed
+
+- The navigation bar now bleeds its own skin above the viewport, so iOS elastic scrolling, the collapsing Safari chrome, and desktop rubber-banding show navigation instead of a bare transparent strip. Works in both themes.
+
 ## [1.2.28] - 2026-07-12
 
 ### Added
@@ -453,6 +459,7 @@ First stable release.
 - Dependency-free ES module engine (docs/checkup.js) with 13 Node tests.
 - Browser UI in the shared suite design with light and dark themes and a ?demo deep link.
 
+[1.2.29]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.2.29
 [1.2.28]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.2.28
 [1.2.27]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.2.27
 [1.2.26]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.2.26
