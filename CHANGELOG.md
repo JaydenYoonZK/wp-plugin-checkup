@@ -3,6 +3,17 @@
 All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.2.23] - 2026-07-12
+
+### Added
+
+- The FAQ is a set of full-width accordions now, each question carrying a plus that turns into a close mark as the answer unfolds, with the state exposed to keyboards and screen readers.
+- The page carries a plugin heartbeat scene beside the maintenance explainer, so sections close at the full width instead of trailing off empty on the right.
+
+### Changed
+
+- Result chips grow to close each row, the seam between the tool and the prose is tighter, and loose paragraphs run the full section width.
+
 ## [1.2.22] - 2026-07-12
 
 ### Fixed
@@ -408,6 +419,7 @@ First stable release.
 - Dependency-free ES module engine (docs/checkup.js) with 13 Node tests.
 - Browser UI in the shared suite design with light and dark themes and a ?demo deep link.
 
+[1.2.23]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.2.23
 [1.2.22]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.2.22
 [1.2.21]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.2.21
 [1.2.20]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.2.20
