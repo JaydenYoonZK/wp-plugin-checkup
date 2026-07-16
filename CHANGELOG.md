@@ -3,6 +3,21 @@
 All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.3.2] - 2026-07-17
+
+A post-release adversarial verification round caught edge cases the 1.3.0 parser rewrite introduced, each one a phantom row waiting to happen. "update", "version", "seo", and "composer" are all real directory slugs (some closed), so a mis-read header or key could top the report with closure verdicts for plugins the user never pasted.
+
+### Fixed
+
+- Borderless and tab-separated table headers ("name status update version", or the same copied from a spreadsheet) were read as slug lists; a line made only of wp-cli column names is now recognized as framing.
+- A pasted composer.json leaked the first path segment of quoted member keys through the CSV splitter ("composer/installers" became a verdict row for "composer"); JSON member lines are never CSV-split, wpackagist requires still parse, and the braces and non-plugin members of the file are framing rather than skipped-line noise.
+- After a CSV header, its column choice applied to every later comma-bearing line, silently swallowing all but one entry of a trailing "akismet, wordfence, classic-editor" list. A blank line now ends the CSV block, and a row whose field count differs from the header's is a fresh list.
+- Lowercase multi-word display names ("yoast seo") were read as slug lists, one phantom per word; a slug list now needs at least one token bearing a hyphen, underscore, digit, or .php, which real folder listings virtually always have. Lines that fail the test are reported in the skip note, never guessed.
+- Truncated or malformed WP-CLI JSON fabricated a slug from the trailing garbage while dropping the real plugin silently; identity keys are now recovered from broken JSON lines ("name", "slug", and "plugin", with composer.json's vendor/project "name" excluded) and anything unreadable is reported as skipped.
+- The lone column word above single-column CSV output ("name") no longer appears in the skipped-lines note.
+- The skip note now agrees in number ("1 line was skipped (not recognized as a plugin identifier)").
+- A comma splice in the FAQ's vulnerability answer, an overhyphenated "misidentified", and a changelog quote that combined an unrendered label with a detail sentence.
+
 ## [1.3.1] - 2026-07-17
 
 ### Fixed
@@ -15,13 +30,13 @@ A deep quality pass from an adversarial review. The headline fixes stop the two 
 
 ### Fixed
 
-- Closed plugins now get the removal verdict they deserve. WordPress.org answers a closed listing with its own response shape (error "closed" plus a closure date and reason), which previously fell into the generic API-failure branch and rendered as "Could not check. Try again in a moment.", forever. A plugin pulled for a security issue, the exact case this tool exists to surface, now shows GONE with the closure date and the directory's stated reason, and keeps its directory link since the public page documents the closure.
+- Closed plugins now get the removal verdict they deserve. WordPress.org answers a closed listing with its own response shape (error "closed" plus a closure date and reason), which previously fell into the generic API-failure branch and rendered as a RETRY row reading "WordPress.org did not return usable plugin information. Try again in a moment.", forever. A plugin pulled for a security issue, the exact case this tool exists to surface, now shows GONE with the closure date and the directory's stated reason, and keeps its directory link since the public page documents the closure.
 - Display names are skipped honestly instead of guessed. "Contact Form 7" used to collapse to its first word and return a red ABANDONED verdict for "contact", a real but unrelated plugin. Multi-word lines that are not tabular tool output or all-slug lists now parse to nothing, and the run note says which lines were skipped and why.
 - A failed current-WordPress-version lookup no longer downgrades every healthy plugin to "Worth a look". The unavailable comparison is a page-wide condition reported once, and each check now awaits the version fetch (with retry) instead of racing it.
 - Plugin names from the API arrive with HTML entities baked in and were double-escaped, so popular plugins displayed literal "&#8211;" in their names. Names are decoded once at the trust boundary and escaped once at render.
 - Composer lines (wpackagist-plugin/akismet) resolved to the vendor name and produced a false GONE row for "wpackagist-plugin" while every real plugin went unchecked; they now resolve to the plugin slug, quoted composer.json lines included.
 - Underscore slugs (serve_static and friends, live directory plugins) were silently dropped by the slug pattern and rejected by the URL builders; underscores are now accepted end to end.
-- WP REST API JSON (wp-json/wp/v2/plugins) resolved through the display-name field and mis-identified plugins; identity keys (slug, plugin, file, textdomain) now take precedence.
+- WP REST API JSON (wp-json/wp/v2/plugins) resolved through the display-name field and misidentified plugins; identity keys (slug, plugin, file, textdomain) now take precedence.
 - CSV exports with custom columns leaked non-name fields as phantom GONE rows; the header row now selects the plugin column for the rows beneath it.
 - Relative plugins/ paths resolved to the literal slug "plugins" (a real abandoned plugin); wordpress.org search and tag URLs resolved to phantom "search" and "tags" slugs. Both parse honestly now.
 - The 404 page loaded its stylesheet and script by relative URL, so deep missing paths rendered unstyled with dead links; every 404 asset and link is now project-absolute, and its service worker registration no longer narrows the worker scope.
@@ -506,6 +521,7 @@ First stable release.
 - Dependency-free ES module engine (docs/checkup.js) with 13 Node tests.
 - Browser UI in the shared suite design with light and dark themes and a ?demo deep link.
 
+[1.3.2]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.2
 [1.3.1]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.1
 [1.3.0]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.0
 [1.2.31]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.2.31

@@ -259,11 +259,57 @@ test("space-separated slug lists (ls output, one-liners) keep every entry", () =
   assert.deepEqual(slugListTokens("akismet hello-dolly woocommerce"), ["akismet", "hello-dolly", "woocommerce"]);
   assert.equal(slugListTokens("Contact Form 7"), null);
   assert.deepEqual(
-    parseSlugs("akismet contact-form-7 woocommerce\njetpack wordfence"),
-    ["akismet", "contact-form-7", "woocommerce", "jetpack", "wordfence"]
+    parseSlugs("akismet contact-form-7 woocommerce\njetpack wp-mail-smtp"),
+    ["akismet", "contact-form-7", "woocommerce", "jetpack", "wp-mail-smtp"]
   );
   // plugins-root stub files: hello.php is Hello Dolly, index.php is not a plugin
   assert.deepEqual(parseSlugs("akismet hello.php index.php woocommerce"), ["akismet", "hello-dolly", "woocommerce"]);
+  // a marker character (hyphen, underscore, digit, dot) must appear somewhere:
+  // "yoast seo" is a typed display name whose words are BOTH real directory
+  // slugs ("seo" is even a closed one), so guessing would put phantom closure
+  // verdicts on top of the report. Skipped with feedback instead.
+  const prose = parseSlugsDetailed("yoast seo");
+  assert.deepEqual(prose.slugs, []);
+  assert.deepEqual(prose.skipped, ["yoast seo"]);
+});
+
+test("table header rows never mint phantom slugs, bordered or not", () => {
+  // "update" and "version" are REAL directory slugs (update is a closed
+  // plugin), so a header read as a slug list would top the report with
+  // phantom closure verdicts for plugins the user never pasted.
+  const borderless = parseSlugsDetailed("name status update version\nakismet active none 5.7");
+  assert.deepEqual(borderless.slugs, ["akismet"]);
+  assert.deepEqual(borderless.skipped, []);
+  const tsv = parseSlugsDetailed("name\tstatus\tupdate\tversion\nakismet\tactive\tnone\t5.7");
+  assert.deepEqual(tsv.slugs, ["akismet"]);
+  assert.deepEqual(tsv.skipped, []);
+  // the lone header word above a single CSV column is framing too
+  const single = parseSlugsDetailed("name\nakismet\ncontact-form-7");
+  assert.deepEqual(single.slugs, ["akismet", "contact-form-7"]);
+  assert.deepEqual(single.skipped, []);
+});
+
+test("a CSV block ends at a blank line or a shape change", () => {
+  // the header's column choice must not swallow a later slug list
+  assert.deepEqual(
+    parseSlugs("name,status\njetpack,active\nwp-mail-smtp,inactive\n\nakismet, wordfence, classic-editor"),
+    ["jetpack", "wp-mail-smtp", "akismet", "wordfence", "classic-editor"]
+  );
+  assert.deepEqual(
+    parseSlugs("name,status\njetpack,active\nakismet, wordfence, classic-editor"),
+    ["jetpack", "akismet", "wordfence", "classic-editor"]
+  );
+});
+
+test("truncated or malformed JSON recovers identity keys and never fabricates", () => {
+  // csvFields would strip the quotes and leak "BROKEN" as a phantom GONE slug
+  assert.deepEqual(parseSlugs(String.raw`[{"name":"akismet", BROKEN`), ["akismet"]);
+  assert.equal(slugFromLine(`{"plugin":"contact-form-7/wp-contact-form-7","status":"active"},`), "contact-form-7");
+  // composer.json's project "name" is vendor/project, not a plugin
+  assert.deepEqual(parseSlugs(`"name": "roots/bedrock",`), []);
+  const garbage = parseSlugsDetailed("[{BROKEN garbage");
+  assert.deepEqual(garbage.slugs, []);
+  assert.deepEqual(garbage.skipped, ["[{BROKEN garbage"]);
 });
 
 test("underscore slugs are real directory slugs and parse everywhere", () => {
@@ -366,4 +412,30 @@ test("sortVerdicts places every level, including error, in urgency order", () =>
 
 test("directoryUrl builds the public plugin page", () => {
   assert.equal(directoryUrl("akismet"), "https://wordpress.org/plugins/akismet/");
+});
+
+
+test("a wholesale composer.json paste yields its plugins and zero phantoms", () => {
+  const composer = `{
+  "require": {
+    "php": ">=8.1",
+    "composer/installers": "^2.2",
+    "wpackagist-plugin/akismet": "^5.3",
+    "wpackagist-plugin/contact-form-7": "^5.9",
+    "roots/wordpress": "^6.5"
+  }
+}`;
+  const detailed = parseSlugsDetailed(composer);
+  assert.deepEqual(detailed.slugs, ["akismet", "contact-form-7"]);
+  // braces and non-plugin members are composer framing, not skipped content
+  assert.deepEqual(detailed.skipped, []);
+  // the trap: csvFields would strip the quotes from a comma-bearing member
+  // line and leak the key's first path segment as a phantom GONE plugin
+  assert.deepEqual(parseSlugs('"composer/installers": "^2.2",'), []);
+});
+
+test("WP-CLI pipe header rows are framing, not skipped content", () => {
+  const detailed = parseSlugsDetailed("+----+\n| name | status |\n| akismet | active |\nTotally Not A Plugin Name");
+  assert.deepEqual(detailed.slugs, ["akismet"]);
+  assert.deepEqual(detailed.skipped, ["Totally Not A Plugin Name"]);
 });

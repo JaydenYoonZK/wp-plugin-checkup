@@ -19,6 +19,13 @@ export const MAX_PARSED_SLUGS = 10000;
 const SLUG_RE = /^[a-z0-9]+(?:[-_][a-z0-9]+)*$/;
 const HEADER_NAMES = new Set(["name", "title", "slug", "status", "plugin"]);
 const WPCLI_STATUSES = new Set(["active", "active-network", "inactive", "must-use", "dropin"]);
+// Every column wp plugin list can print. A line made only of these words is a
+// table header, not a plugin list; "update" and "version" are REAL directory
+// slugs, so a header read as slugs would put phantom verdicts on top.
+const COLUMN_NAMES = new Set([
+  ...HEADER_NAMES, "update", "version", "update_version", "auto_update",
+  "description", "wporg_status", "wporg_last_updated", "recently_active", "file"
+]);
 // Directory slugs for files that live directly in wp-content/plugins/.
 // index.php is the silence-is-golden stub in every install, not a plugin.
 const FILE_ALIASES = new Map([["hello", "hello-dolly"], ["index", null]]);
@@ -27,16 +34,21 @@ const VERSION_TOKEN_RE = /^v?\d+(?:\.\d+)+$/;
 /* ----------------------------- parsing ----------------------------- */
 
 /** A line of space-separated slugs (ls output of wp-content/plugins, a
- *  hand-typed one-liner). All-lowercase with every token slug-shaped is the
- *  discriminator that keeps display names ("Contact Form 7") out; a pure-digit
- *  token (the "7") also disqualifies the line, since no real plugin folder is
- *  a bare number. Returns the tokens, or null when the line is not a list. */
+ *  hand-typed one-liner). Three discriminators keep prose and table headers
+ *  out, because every rejected line is reported while every accepted token
+ *  gets a verdict: display names have capitals or bare numbers ("Contact
+ *  Form 7"); lowercase prose ("yoast seo") has no slug-marker characters,
+ *  while real folder listings virtually always carry a hyphen, underscore,
+ *  digit, or .php somewhere; and a line made only of wp-cli column names is
+ *  a borderless table header. Returns the tokens, or null. */
 export function slugListTokens(line) {
   if (typeof line !== "string" || /[A-Z]/.test(line)) return null;
   const tokens = line.trim().split(/\s+/).filter(Boolean);
   if (tokens.length < 2) return null;
   if (WPCLI_STATUSES.has(tokens[1]) || VERSION_TOKEN_RE.test(tokens[1])) return null;
+  if (!tokens.some(t => /[-_.0-9]/.test(t))) return null;
   const cleaned = tokens.map(t => t.replace(/\.php$/i, ""));
+  if (cleaned.every(t => COLUMN_NAMES.has(t))) return null;
   if (!cleaned.every(t => SLUG_RE.test(t) && !/^\d+$/.test(t))) return null;
   return cleaned;
 }
@@ -58,6 +70,14 @@ export function slugFromLine(line) {
   // surrounding quotes and version constraint of a composer.json require line)
   const composer = /["']?wpackagist-(?:mu)?plugin\/([A-Za-z0-9_.-]+)/i.exec(s);
   if (composer) s = composer[1];
+
+  // A JSON member carrying plugin identity, e.g. a line of truncated or
+  // malformed wp-cli/REST JSON: {"name":"akismet", ... A "name" holding a
+  // vendor/project pair is composer.json's project name, not a plugin.
+  const jsonMember = !composer && /"(name|slug|plugin)"\s*:\s*"([^"]+)"/.exec(s);
+  if (jsonMember && !(jsonMember[1] === "name" && jsonMember[2].includes("/"))) {
+    s = jsonMember[2];
+  }
 
   // WP-CLI table row: | akismet | active | ... |  ->  first cell
   if (s.startsWith("|")) {
@@ -146,14 +166,42 @@ function jsonSlugs(input) {
   } catch { return null; }
 }
 
+// A JSON member line ("key": value) from a pasted composer.json or similar.
+// These must never be split as CSV: csvFields strips the quotes and the
+// key's first path segment ("composer/installers" -> "composer") would leak
+// out as a phantom plugin with a false GONE verdict.
+function isJsonMemberLine(line) {
+  return /^\s*"[^"]+"\s*:/.test(line);
+}
+
+// Looser variant for the CSV guard: a "key": fragment ANYWHERE marks the
+// line as JSON no matter what precedes it (a truncated paste can open with
+// [{ on the same line), and slugFromLine knows how to read such lines whole.
+function hasJsonMember(line) {
+  return /"[^"]*"\s*:/.test(line);
+}
+
 // Lines that are input framing rather than user content: comments, WP-CLI
-// table borders, YAML document markers, and YAML keys that carry plugin
-// metadata rather than identity. These never count as "skipped" feedback.
+// table borders and header rows, YAML document markers, YAML keys that carry
+// plugin metadata rather than identity, and the braces and non-plugin members
+// of a pasted composer.json. These never count as "skipped" feedback.
 function isStructuralLine(line) {
   const s = line.trim();
   if (!s || s.startsWith("#") || s.startsWith("//")) return true;
   if (/^[+|\-\s]+$/.test(s)) return true;
   if (/^-?\s*[a-z_]+:(\s|$)/.test(s) && !/^-?\s*(?:name|slug|plugin):/.test(s)) return true;
+  if (s.startsWith("|")) {
+    const first = (s.split("|").map(c => c.trim()).find(c => c) || "").toLowerCase();
+    if (HEADER_NAMES.has(first)) return true;
+  }
+  // header rows without borders: a lone column word ("name" above a single
+  // CSV column) or a line made only of column names ("name status update
+  // version" from a borderless or tab-separated table)
+  const words = s.toLowerCase().split(/[\s,]+/).filter(Boolean);
+  if (words.length === 1 && HEADER_NAMES.has(words[0])) return true;
+  if (words.length >= 2 && words.every(w => COLUMN_NAMES.has(w))) return true;
+  if (/^[{}[\]],?$/.test(s)) return true;
+  if (isJsonMemberLine(s) && !/wpackagist-(?:mu)?plugin\//i.test(s)) return true;
   return false;
 }
 
@@ -169,10 +217,13 @@ export function parseSlugsDetailed(input) {
   const json = jsonSlugs(input);
   const lines = json ?? input.split(/\r?\n/);
   let csvSlugColumn = null;
+  let csvFieldCount = 0;
   for (const line of lines) {
     const raw = String(line);
+    // a blank line ends a CSV block; what follows is a fresh paste section
+    if (!json && !raw.trim()) { csvSlugColumn = null; csvFieldCount = 0; continue; }
     let items = [raw];
-    if (!json && !raw.includes("|") && raw.includes(",")) {
+    if (!json && !raw.includes("|") && raw.includes(",") && !hasJsonMember(raw)) {
       const fields = csvFields(raw);
       if (fields) {
         const lower = fields.map(f => f.replace(/^"|"$/g, "").trim().toLowerCase());
@@ -180,9 +231,12 @@ export function parseSlugsDetailed(input) {
           // header row: remember which column names the plugin, consume the row
           const key = ["slug", "plugin", "name", "title"].find(k => lower.includes(k));
           csvSlugColumn = key ? lower.indexOf(key) : 0;
+          csvFieldCount = fields.length;
           continue;
         }
-        if (csvSlugColumn !== null) items = [fields[csvSlugColumn] ?? ""];
+        // only rows that match the header's shape are its data rows; a line
+        // with a different field count is a fresh list, not a table row
+        if (csvSlugColumn !== null && fields.length === csvFieldCount) items = [fields[csvSlugColumn] ?? ""];
         else if (WPCLI_STATUSES.has(lower[1])) items = [fields[0]];
         else items = fields;
       }

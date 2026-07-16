@@ -1,5 +1,5 @@
 /*! WP Plugin Checkup | Copyright (c) 2026 Jayden Yoon ZK | MIT License | https://github.com/JaydenYoonZK/wp-plugin-checkup */
-import { parseSlugsDetailed, apiUrl, directoryUrl, pluginInfoFromApi, verdict, parseWpVersion } from "./checkup.js?v=1.3.1";
+import { parseSlugsDetailed, apiUrl, directoryUrl, pluginInfoFromApi, verdict, parseWpVersion } from "./checkup.js?v=1.3.2";
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
@@ -148,7 +148,7 @@ async function run() {
   // Say what was understood AND what was not: silently dropping lines would
   // let an unparsed plugin pass as checked.
   const skipNote = skipped.length
-    ? ` ${skipped.length} line${skipped.length === 1 ? " was" : "s were"} skipped (not recognized as plugin identifiers): ${skipped.slice(0, 3).map(s => `"${s.length > 40 ? s.slice(0, 40) + "..." : s}"`).join(", ")}${skipped.length > 3 ? ` and ${skipped.length - 3} more` : ""}.`
+    ? ` ${skipped.length === 1 ? "1 line was skipped (not recognized as a plugin identifier)" : `${skipped.length} lines were skipped (not recognized as plugin identifiers)`}: ${skipped.slice(0, 3).map(s => `"${s.length > 40 ? s.slice(0, 40) + "..." : s}"`).join(", ")}${skipped.length > 3 ? ` and ${skipped.length - 3} more` : ""}.`
     : "";
   kindNote.textContent = `Checking ${list.length} plugin${list.length === 1 ? "" : "s"} against the WordPress.org directory` +
     (slugs.length > MAX_PLUGINS ? `. Only the first ${MAX_PLUGINS} are checked; split larger lists to stay polite to the API.` : ".") + skipNote;
