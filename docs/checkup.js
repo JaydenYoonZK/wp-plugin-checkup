@@ -16,11 +16,30 @@ export const LOW_INSTALLS = 1000; // Legacy export. Install count no longer chan
 export const MAX_INPUT_LENGTH = 1024 * 1024;
 export const MAX_PARSED_SLUGS = 10000;
 
-const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const SLUG_RE = /^[a-z0-9]+(?:[-_][a-z0-9]+)*$/;
 const HEADER_NAMES = new Set(["name", "title", "slug", "status", "plugin"]);
 const WPCLI_STATUSES = new Set(["active", "active-network", "inactive", "must-use", "dropin"]);
+// Directory slugs for files that live directly in wp-content/plugins/.
+// index.php is the silence-is-golden stub in every install, not a plugin.
+const FILE_ALIASES = new Map([["hello", "hello-dolly"], ["index", null]]);
+const VERSION_TOKEN_RE = /^v?\d+(?:\.\d+)+$/;
 
 /* ----------------------------- parsing ----------------------------- */
+
+/** A line of space-separated slugs (ls output of wp-content/plugins, a
+ *  hand-typed one-liner). All-lowercase with every token slug-shaped is the
+ *  discriminator that keeps display names ("Contact Form 7") out; a pure-digit
+ *  token (the "7") also disqualifies the line, since no real plugin folder is
+ *  a bare number. Returns the tokens, or null when the line is not a list. */
+export function slugListTokens(line) {
+  if (typeof line !== "string" || /[A-Z]/.test(line)) return null;
+  const tokens = line.trim().split(/\s+/).filter(Boolean);
+  if (tokens.length < 2) return null;
+  if (WPCLI_STATUSES.has(tokens[1]) || VERSION_TOKEN_RE.test(tokens[1])) return null;
+  const cleaned = tokens.map(t => t.replace(/\.php$/i, ""));
+  if (!cleaned.every(t => SLUG_RE.test(t) && !/^\d+$/.test(t))) return null;
+  return cleaned;
+}
 
 /** Extract a plugin slug from one line of pasted input, or null. */
 export function slugFromLine(line) {
@@ -30,6 +49,15 @@ export function slugFromLine(line) {
 
   // WP-CLI table borders and separators (+----+----+)
   if (/^[+|\-\s]+$/.test(s)) return null;
+
+  // WP-CLI YAML list item: "- name: akismet" (also bare "slug: x" / "plugin: x")
+  const yaml = /^-?\s*(?:name|slug|plugin):\s*(.+)$/.exec(s);
+  if (yaml) s = yaml[1].trim().replace(/^["']|["']$/g, "");
+
+  // Composer / wpackagist: wpackagist-plugin/akismet (with or without the
+  // surrounding quotes and version constraint of a composer.json require line)
+  const composer = /["']?wpackagist-(?:mu)?plugin\/([A-Za-z0-9_.-]+)/i.exec(s);
+  if (composer) s = composer[1];
 
   // WP-CLI table row: | akismet | active | ... |  ->  first cell
   if (s.startsWith("|")) {
@@ -45,21 +73,39 @@ export function slugFromLine(line) {
       const parts = url.pathname.split("/").filter(Boolean);
       const index = parts.indexOf("plugins");
       s = index !== -1 ? parts[index + 1] || "" : "";
+      // wordpress.org/plugins/search/... and /plugins/tags/... are directory
+      // navigation, not plugin pages
+      if (s === "search" || s === "tags" || s === "browse") return null;
     } catch { return null; }
-  } else {
+  } else if (!composer) {
     s = s.replace(/\\/g, "/");
-    const pluginPath = /(?:^|\/)wp-content\/plugins\/([^/]+)/i.exec(s);
+    const pluginPath = /(?:^|\/)(?:wp-content\/)?plugins\/([^/]+)/i.exec(s);
     if (pluginPath) s = pluginPath[1];
     else if (s.includes("/")) s = s.split("/").filter(Boolean)[0] || "";
   }
 
-  s = s.split(/[\s|]+/).find(t => t) || "";
+  // Multi-token leftovers: keep the first cell of tabular tool output (second
+  // token is a WP-CLI status or a version number), or the first entry of an
+  // all-slug list line. Anything else is a display name or prose; guessing a
+  // slug from its first word asserts a verdict about the wrong plugin.
+  const tokens = s.split(/[\s|]+/).filter(Boolean);
+  if (tokens.length > 1) {
+    const second = tokens[1].toLowerCase();
+    const tabular = WPCLI_STATUSES.has(second) || VERSION_TOKEN_RE.test(second);
+    if (!tabular && !slugListTokens(s)) return null;
+  }
+  s = tokens[0] || "";
 
   // strip a trailing .php just in case
   s = s.replace(/\.php$/i, "");
 
-  // valid plugin slugs are lowercase letters, numbers, and hyphens
+  // valid plugin slugs are lowercase letters, numbers, hyphens, underscores
   s = s.toLowerCase();
+  if (FILE_ALIASES.has(s)) {
+    const mapped = FILE_ALIASES.get(s);
+    if (mapped === null) return null;
+    s = mapped;
+  }
   if (!SLUG_RE.test(s)) return null;
   // skip the WP-CLI header row's column name
   if (HEADER_NAMES.has(s)) return null;
@@ -92,37 +138,76 @@ function jsonSlugs(input) {
     if (!Array.isArray(data)) return null;
     return data.map((item) => {
       if (typeof item === "string") return item;
-      if (item && typeof item === "object") return item.name ?? item.slug ?? item.file ?? "";
+      // slug and plugin (the REST API's "dir/file" key) are authoritative;
+      // name is last because the REST API puts the DISPLAY name there
+      if (item && typeof item === "object") return item.slug ?? item.plugin ?? item.file ?? item.textdomain ?? item.name ?? "";
       return "";
     });
   } catch { return null; }
 }
 
-/** Parse a whole pasted blob into a unique, ordered list of slugs. */
-export function parseSlugs(input) {
+// Lines that are input framing rather than user content: comments, WP-CLI
+// table borders, YAML document markers, and YAML keys that carry plugin
+// metadata rather than identity. These never count as "skipped" feedback.
+function isStructuralLine(line) {
+  const s = line.trim();
+  if (!s || s.startsWith("#") || s.startsWith("//")) return true;
+  if (/^[+|\-\s]+$/.test(s)) return true;
+  if (/^-?\s*[a-z_]+:(\s|$)/.test(s) && !/^-?\s*(?:name|slug|plugin):/.test(s)) return true;
+  return false;
+}
+
+/** Parse a pasted blob into { slugs, skipped }: a unique, ordered list of
+ *  slugs plus the non-structural lines that yielded no plugin, so the UI can
+ *  say what was not understood instead of silently ignoring it. */
+export function parseSlugsDetailed(input) {
   if (typeof input !== "string") throw new TypeError("plugin list must be a string");
   if (input.length > MAX_INPUT_LENGTH) throw new RangeError("plugin list exceeds 1 MiB");
   const seen = new Set();
   const out = [];
+  const skipped = [];
   const json = jsonSlugs(input);
   const lines = json ?? input.split(/\r?\n/);
+  let csvSlugColumn = null;
   for (const line of lines) {
-    let items = [String(line)];
-    if (!json && !line.includes("|") && line.includes(",")) {
-      const fields = csvFields(line);
+    const raw = String(line);
+    let items = [raw];
+    if (!json && !raw.includes("|") && raw.includes(",")) {
+      const fields = csvFields(raw);
       if (fields) {
-        const first = fields[0].replace(/^"|"$/g, "").toLowerCase();
-        const second = fields[1]?.toLowerCase();
-        items = HEADER_NAMES.has(first) || WPCLI_STATUSES.has(second) ? [fields[0]] : fields;
+        const lower = fields.map(f => f.replace(/^"|"$/g, "").trim().toLowerCase());
+        if (lower.some(f => HEADER_NAMES.has(f))) {
+          // header row: remember which column names the plugin, consume the row
+          const key = ["slug", "plugin", "name", "title"].find(k => lower.includes(k));
+          csvSlugColumn = key ? lower.indexOf(key) : 0;
+          continue;
+        }
+        if (csvSlugColumn !== null) items = [fields[csvSlugColumn] ?? ""];
+        else if (WPCLI_STATUSES.has(lower[1])) items = [fields[0]];
+        else items = fields;
       }
+    } else if (!json) {
+      // a line of space-separated slugs (ls output, one-line lists)
+      const listed = slugListTokens(raw);
+      if (listed) items = listed;
     }
+    let found = 0;
     for (const item of items) {
       const slug = slugFromLine(item);
-      if (slug && !seen.has(slug)) { seen.add(slug); out.push(slug); }
-      if (out.length >= MAX_PARSED_SLUGS) return out;
+      if (slug) {
+        found++;
+        if (!seen.has(slug)) { seen.add(slug); out.push(slug); }
+      }
+      if (out.length >= MAX_PARSED_SLUGS) return { slugs: out, skipped };
     }
+    if (!found && !isStructuralLine(raw)) skipped.push(raw.trim());
   }
-  return out;
+  return { slugs: out, skipped };
+}
+
+/** Parse a whole pasted blob into a unique, ordered list of slugs. */
+export function parseSlugs(input) {
+  return parseSlugsDetailed(input).slugs;
 }
 
 /* ----------------------------- helpers ----------------------------- */
@@ -180,15 +265,50 @@ export function directoryUrl(slug) {
   return `https://wordpress.org/plugins/${slug}/`;
 }
 
+const NAMED_ENTITIES = {
+  amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ",
+  ndash: "–", mdash: "—", hellip: "…", middot: "·",
+  lsquo: "‘", rsquo: "’", ldquo: "“", rdquo: "”",
+  bull: "•", copy: "©", reg: "®", trade: "™", deg: "°"
+};
+
+/** Decode the HTML entities the plugin API bakes into names ("Name &#8211;
+ *  Tagline"), so the UI's own escaping does not display them as literals.
+ *  Unknown entities pass through unchanged. */
+export function decodeEntities(s) {
+  return String(s).replace(/&(#x?[0-9a-f]+|[a-z]+[0-9]*);/gi, (match, ent) => {
+    if (ent[0] === "#") {
+      const hex = ent[1] === "x" || ent[1] === "X";
+      const code = parseInt(ent.slice(hex ? 2 : 1), hex ? 16 : 10);
+      if (!Number.isFinite(code) || code <= 0 || code > 0x10ffff) return match;
+      if (code >= 0xd800 && code <= 0xdfff) return match;
+      return String.fromCodePoint(code);
+    }
+    return NAMED_ENTITIES[ent.toLowerCase()] ?? match;
+  });
+}
+
 /** Normalize a WordPress.org plugin-information API response. */
 export function pluginInfoFromApi(data, { ok = true, status = 200 } = {}) {
+  // A closed plugin answers 404 with {"error":"closed", "closed":true,
+  // "closed_date":..., "reason_text":...}. This is the directory's strongest
+  // signal, not an API failure, and must never be reported as one.
+  if (data?.error === "closed" || data?.closed === true) {
+    return {
+      exists: false,
+      closed: true,
+      name: typeof data.name === "string" ? decodeEntities(data.name) : undefined,
+      closedDate: typeof data.closed_date === "string" ? data.closed_date : undefined,
+      reason: typeof data.reason_text === "string" ? data.reason_text : undefined
+    };
+  }
   if (status === 404 && data?.error === "Plugin not found.") return { exists: false };
   if (!ok || !data || typeof data !== "object" || data.error || typeof data.slug !== "string") {
     return { error: "api" };
   }
   return {
     exists: true,
-    name: typeof data.name === "string" ? data.name : undefined,
+    name: typeof data.name === "string" ? decodeEntities(data.name) : undefined,
     version: typeof data.version === "string" ? data.version : undefined,
     last_updated: typeof data.last_updated === "string" ? data.last_updated : undefined,
     tested: typeof data.tested === "string" ? data.tested : undefined,
@@ -212,6 +332,14 @@ export function verdict(slug, info, ctx) {
 
   if (info?.error) {
     return { slug, level: "error", label: "Could not check", detail: "WordPress.org did not return usable plugin information. Try again in a moment." };
+  }
+  if (info?.closed) {
+    const when = info.closedDate ? ` on ${info.closedDate}` : "";
+    const why = info.reason ? ` WordPress.org gives the reason as: ${info.reason}.` : "";
+    return {
+      slug, level: "removed", label: "Closed by WordPress.org", name: info.name, closed: true,
+      detail: `This plugin was closed${when} and can no longer be downloaded from the directory.${why} Installed copies keep running but receive no updates or review, so plan a replacement.`
+    };
   }
   if (!info || !info.exists) {
     return {
@@ -238,7 +366,10 @@ export function verdict(slug, info, ctx) {
   if (months !== null && months >= STALE_MONTHS) flags.push(`last updated about ${Math.round(months)} months ago`);
   if (updated === null) flags.push("last-update date unavailable");
   if (!info.tested) flags.push("tested-up-to version unavailable");
-  else if (currentVersion == null) flags.push("current WordPress version unavailable for comparison");
+  // When the CURRENT WordPress version is unknown (stable-check unreachable),
+  // that is a page-wide condition the UI reports once; flagging it per plugin
+  // would downgrade every healthy plugin on the list to "Worth a look".
+  else if (currentVersion == null) { /* comparison unavailable; not the plugin's fault */ }
   else if (behind === null) flags.push("tested-up-to version could not be compared");
   else if (behind >= 2) flags.push(`only tested up to WordPress ${info.tested}`);
 

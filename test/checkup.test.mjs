@@ -1,8 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  slugFromLine, parseSlugs, parseUpdated, parseWpVersion, testedVersionsBehind,
-  monthsBetween, apiUrl, directoryUrl, pluginInfoFromApi, verdict, sortVerdicts
+  slugFromLine, slugListTokens, parseSlugs, parseSlugsDetailed, parseUpdated,
+  parseWpVersion, testedVersionsBehind, monthsBetween, apiUrl, directoryUrl,
+  pluginInfoFromApi, verdict, sortVerdicts, decodeEntities,
+  MAX_PARSED_SLUGS
 } from "../docs/checkup.js";
 
 const NOW = Date.UTC(2026, 6, 7); // 2026-07-07
@@ -210,12 +212,158 @@ test("healthy requires update and compatibility evidence", () => {
   const noTested = verdict("incomplete", { ...base, last_updated: "2026-06-01 12:00am GMT" }, CTX);
   assert.equal(noTested.level, "outdated");
   assert.match(noTested.detail, /tested-up-to version unavailable/i);
+  // An unknown CURRENT WordPress version is a page-wide condition (the UI
+  // reports it once); it must not downgrade every healthy plugin on the list.
   const noCurrent = verdict("incomplete", { ...base, last_updated: "2026-06-01 12:00am GMT", tested: "7.0" }, { now: NOW });
-  assert.equal(noCurrent.level, "outdated");
-  assert.match(noCurrent.detail, /current WordPress version unavailable/i);
+  assert.equal(noCurrent.level, "ok");
 });
 
 test("unknown API errors never become directory-removal verdicts", () => {
   assert.equal(verdict("x", { error: "api" }, CTX).level, "error");
   assert.match(verdict("x", { exists: false }, CTX).detail, /custom or commercial/i);
+});
+
+
+/* ------------------- regressions from the deep quality pass ------------------- */
+
+test("closed plugins get a removal verdict with the closure date and reason", () => {
+  // the real API shape for a closed listing: HTTP 404 with error:"closed"
+  const closed = pluginInfoFromApi({
+    error: "closed", name: "Display Widgets", slug: "display-widgets",
+    closed: true, closed_date: "2021-01-30", reason: "security-issue", reason_text: "Security Issue"
+  }, { ok: false, status: 404 });
+  assert.equal(closed.exists, false);
+  assert.equal(closed.closed, true);
+  const v = verdict("display-widgets", closed, CTX);
+  assert.equal(v.level, "removed");
+  assert.equal(v.closed, true);
+  assert.match(v.detail, /2021-01-30/);
+  assert.match(v.detail, /Security Issue/);
+  // never the "try again in a moment" error path: retrying cannot help
+  assert.doesNotMatch(v.detail, /try again/i);
+});
+
+test("display names are skipped, never guessed from their first word", () => {
+  assert.equal(slugFromLine("Contact Form 7"), null);
+  assert.equal(slugFromLine("Yoast SEO"), null);
+  assert.equal(slugFromLine("All in One SEO"), null);
+  assert.deepEqual(parseSlugs("Contact Form 7\nYoast SEO"), []);
+  // lowercase prose with a bare number is a display name, not a slug list
+  assert.deepEqual(parseSlugs("contact form 7"), []);
+  // tabular tool output still reads its first cell
+  assert.equal(slugFromLine("akismet active none 5.7"), "akismet");
+  assert.equal(slugFromLine("akismet 5.7 active"), "akismet");
+});
+
+test("space-separated slug lists (ls output, one-liners) keep every entry", () => {
+  assert.deepEqual(slugListTokens("akismet hello-dolly woocommerce"), ["akismet", "hello-dolly", "woocommerce"]);
+  assert.equal(slugListTokens("Contact Form 7"), null);
+  assert.deepEqual(
+    parseSlugs("akismet contact-form-7 woocommerce\njetpack wordfence"),
+    ["akismet", "contact-form-7", "woocommerce", "jetpack", "wordfence"]
+  );
+  // plugins-root stub files: hello.php is Hello Dolly, index.php is not a plugin
+  assert.deepEqual(parseSlugs("akismet hello.php index.php woocommerce"), ["akismet", "hello-dolly", "woocommerce"]);
+});
+
+test("underscore slugs are real directory slugs and parse everywhere", () => {
+  assert.equal(slugFromLine("serve_static"), "serve_static");
+  assert.deepEqual(parseSlugs("serve_static\nf12_configurator\nakismet"), ["serve_static", "f12_configurator", "akismet"]);
+  assert.match(apiUrl("serve_static"), /serve_static/);
+  assert.equal(directoryUrl("serve_static"), "https://wordpress.org/plugins/serve_static/");
+});
+
+test("composer and wpackagist lines resolve to the plugin, not the vendor", () => {
+  assert.equal(slugFromLine("wpackagist-plugin/akismet"), "akismet");
+  assert.equal(slugFromLine('"wpackagist-plugin/contact-form-7": "^5.9",'), "contact-form-7");
+  assert.equal(slugFromLine("wpackagist-muplugin/mu-tool"), "mu-tool");
+  assert.deepEqual(parseSlugs("wpackagist-plugin/akismet\nwpackagist-plugin/woocommerce"), ["akismet", "woocommerce"]);
+});
+
+test("JSON arrays prefer identity keys over display names", () => {
+  // WP REST API /wp/v2/plugins: plugin carries "dir/file", name is the display name
+  const rest = JSON.stringify([
+    { plugin: "contact-form-7/wp-contact-form-7", name: "Contact Form 7", status: "active" },
+    { plugin: "akismet/akismet", name: "Akismet Anti-spam", status: "active" }
+  ]);
+  assert.deepEqual(parseSlugs(rest), ["contact-form-7", "akismet"]);
+  // wp-cli JSON still resolves through its name key, which is the slug there
+  assert.deepEqual(parseSlugs('[{"name":"akismet","status":"active"}]'), ["akismet"]);
+  // malformed JSON falls back to line parsing without fabricating slugs
+  assert.deepEqual(parseSlugs('[{"name": broken'), []);
+});
+
+test("CSV columns other than the header-named plugin column never leak as slugs", () => {
+  assert.deepEqual(parseSlugs("name,update\nakismet,none\ncontact-form-7,available"), ["akismet", "contact-form-7"]);
+  assert.deepEqual(parseSlugs("status,name\nactive,akismet\ninactive,jetpack"), ["akismet", "jetpack"]);
+  // a headerless comma one-liner still reads every field
+  assert.deepEqual(parseSlugs("akismet, jetpack, wordfence"), ["akismet", "jetpack", "wordfence"]);
+});
+
+test("relative plugins/ paths and directory navigation URLs resolve honestly", () => {
+  assert.equal(slugFromLine("plugins/query-monitor"), "query-monitor");
+  assert.equal(slugFromLine("wp-content/plugins/akismet/akismet.php"), "akismet");
+  assert.equal(slugFromLine("https://wordpress.org/plugins/search/backup/"), null);
+  assert.equal(slugFromLine("https://wordpress.org/plugins/tags/security/"), null);
+});
+
+test("WP-CLI YAML output parses to its slugs", () => {
+  const yaml = "---\n- name: akismet\n  status: active\n  version: \"5.7\"\n- name: classic-editor\n  status: inactive";
+  assert.deepEqual(parseSlugs(yaml), ["akismet", "classic-editor"]);
+});
+
+test("parseSlugsDetailed reports the lines it could not read", () => {
+  const detailed = parseSlugsDetailed("akismet\nContact Form 7\n# a comment\n\njetpack");
+  assert.deepEqual(detailed.slugs, ["akismet", "jetpack"]);
+  assert.deepEqual(detailed.skipped, ["Contact Form 7"]);
+  // structural YAML lines are framing, not skipped content
+  assert.deepEqual(parseSlugsDetailed("- name: akismet\n  status: active").skipped, []);
+});
+
+test("an unknown current WordPress version never downgrades a healthy plugin", () => {
+  const healthy = { exists: true, name: "A", last_updated: "2026-06-01 12:00am GMT", tested: "7.0", active_installs: 5 };
+  assert.equal(verdict("a", healthy, { now: NOW }).level, "ok");
+});
+
+test("verdict thresholds hold at their exact boundaries", () => {
+  const mk = (updated, tested = "7.0") =>
+    verdict("x", { exists: true, last_updated: updated, tested, active_installs: 1 }, CTX).level;
+  // ABANDONED_MONTHS = 24: 2024-07-05 is ~24.1 months before NOW, 2024-07-20 is ~23.9
+  assert.equal(mk("2024-07-05 1:00am GMT"), "abandoned");
+  assert.equal(mk("2024-07-20 1:00am GMT"), "outdated");
+  // STALE_MONTHS = 12: ~12.5 months is stale, ~11.5 is not
+  assert.equal(mk("2025-06-22 1:00am GMT"), "outdated");
+  assert.equal(mk("2025-07-22 1:00am GMT"), "ok");
+  // behind >= 2 releases: tested 6.5 vs current 6.7 flags, 6.6 does not
+  const behindLevel = (tested, currentVersion) =>
+    verdict("x", { exists: true, last_updated: "2026-06-01 12:00am GMT", tested, active_installs: 1 }, { now: NOW, currentVersion }).level;
+  assert.equal(behindLevel("6.5", "6.7"), "outdated");
+  assert.equal(behindLevel("6.6", "6.7"), "ok");
+  // the x.9 -> (x+1).0 rollover counts as one release
+  assert.equal(testedVersionsBehind("5.9", "6.0"), 1);
+  assert.equal(behindLevel("5.9", "6.1"), "outdated");
+  // an unreadable tested value is flagged, not silently passed
+  assert.equal(behindLevel("not-a-version", "7.0"), "outdated");
+});
+
+test("input caps are enforced", () => {
+  const big = Array.from({ length: MAX_PARSED_SLUGS + 5 }, (_, i) => `plugin-${i}`).join("\n");
+  assert.equal(parseSlugs(big).length, MAX_PARSED_SLUGS);
+});
+
+test("API names arrive entity-encoded and decode exactly once", () => {
+  assert.equal(decodeEntities("A &#8211; B &amp; C"), "A – B & C");
+  assert.equal(decodeEntities("&#x2013; &quot;q&quot;"), "– \"q\"");
+  assert.equal(decodeEntities("keep &unknownent; as-is"), "keep &unknownent; as-is");
+  const info = pluginInfoFromApi({ slug: "p", name: "Forms &#8211; Builder &amp; Editor" }, { ok: true, status: 200 });
+  assert.equal(info.name, "Forms – Builder & Editor");
+});
+
+test("sortVerdicts places every level, including error, in urgency order", () => {
+  const levels = ["ok", "error", "removed", "outdated", "abandoned"].map(level => ({ slug: level, level }));
+  assert.deepEqual(sortVerdicts(levels).map(v => v.level), ["removed", "abandoned", "outdated", "error", "ok"]);
+});
+
+test("directoryUrl builds the public plugin page", () => {
+  assert.equal(directoryUrl("akismet"), "https://wordpress.org/plugins/akismet/");
 });

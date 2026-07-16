@@ -3,6 +3,35 @@
 All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.3.0] - 2026-07-17
+
+A deep quality pass from an adversarial review. The headline fixes stop the two ways this tool could assert a wrong verdict.
+
+### Fixed
+
+- Closed plugins now get the removal verdict they deserve. WordPress.org answers a closed listing with its own response shape (error "closed" plus a closure date and reason), which previously fell into the generic API-failure branch and rendered as "Could not check. Try again in a moment.", forever. A plugin pulled for a security issue, the exact case this tool exists to surface, now shows GONE with the closure date and the directory's stated reason, and keeps its directory link since the public page documents the closure.
+- Display names are skipped honestly instead of guessed. "Contact Form 7" used to collapse to its first word and return a red ABANDONED verdict for "contact", a real but unrelated plugin. Multi-word lines that are not tabular tool output or all-slug lists now parse to nothing, and the run note says which lines were skipped and why.
+- A failed current-WordPress-version lookup no longer downgrades every healthy plugin to "Worth a look". The unavailable comparison is a page-wide condition reported once, and each check now awaits the version fetch (with retry) instead of racing it.
+- Plugin names from the API arrive with HTML entities baked in and were double-escaped, so popular plugins displayed literal "&#8211;" in their names. Names are decoded once at the trust boundary and escaped once at render.
+- Composer lines (wpackagist-plugin/akismet) resolved to the vendor name and produced a false GONE row for "wpackagist-plugin" while every real plugin went unchecked; they now resolve to the plugin slug, quoted composer.json lines included.
+- Underscore slugs (serve_static and friends, live directory plugins) were silently dropped by the slug pattern and rejected by the URL builders; underscores are now accepted end to end.
+- WP REST API JSON (wp-json/wp/v2/plugins) resolved through the display-name field and mis-identified plugins; identity keys (slug, plugin, file, textdomain) now take precedence.
+- CSV exports with custom columns leaked non-name fields as phantom GONE rows; the header row now selects the plugin column for the rows beneath it.
+- Relative plugins/ paths resolved to the literal slug "plugins" (a real abandoned plugin); wordpress.org search and tag URLs resolved to phantom "search" and "tags" slugs. Both parse honestly now.
+- The 404 page loaded its stylesheet and script by relative URL, so deep missing paths rendered unstyled with dead links; every 404 asset and link is now project-absolute, and its service worker registration no longer narrows the worker scope.
+- The hero illustration showed a 31-month update gap as an amber OLD pill; the engine calls that red ABANDONED. The art now shows a 14-month CHECK, and its pills use the product's real labels (CHECK, HEALTHY). The README preview is regenerated to match.
+- The hidden scroll-to-top button was an invisible keyboard tab stop; it is now visibility-hidden until shown.
+- Theme storage access is guarded for private-mode browsers, on both pages and in the boot scripts.
+
+### Added
+
+- Space-separated slug lists parse in full: an ls of wp-content/plugins pastes straight in, including the hello.php and index.php stubs (mapped to Hello Dolly and skipped, respectively). WP-CLI YAML output is now understood too.
+- The run note reports skipped lines by name, so nothing disappears silently.
+- A RETRY row in the verdict legend on the page and in the README, documenting the API-failure pill that could always appear.
+- prefers-reduced-motion now pauses the SMIL animations in the hero and 404 illustrations, which CSS alone cannot stop.
+- A theme-color meta for browser chrome, PNG favicon fallbacks (32px and apple-touch), a data-theme fallback on the html element, and a polite live region on the run status for screen readers.
+- Static site tests in the suite convention (accessible names, anchor targets, asset existence, 404 absolute-URL policy) plus engine regressions for every fix above: 27 tests grow to 49.
+
 ## [1.2.31] - 2026-07-15
 
 ### Added
@@ -260,7 +289,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - The key press finally travels. During a click the pointer is still hovering, and the hover lift rule outranked the press rule, so the cap held its raised position while the shadows switched to pressed geometry, which read as the base jumping up instead of the cap going down. The press is now declared after the hover lift at matching specificity and wins the cascade, so the cap visibly sinks 3px into its anchored base on every click.
 - Dark mode's primary button no longer loses its 3D edge on hover. A leftover rule from before the key redesign replaced the whole hover shadow with a flat glow.
 - In light mode the pressed shadow now outranks the hover shadow mid click, so the primary button's base geometry stays correct through the press.
-- Tapping controls on phones no longer flashes the system's default grey tap rectangle over the design's own pressed states. Keyboard focus outlines are unaffected.
+- Tapping controls on phones no longer flashes the system's default gray tap rectangle over the design's own pressed states. Keyboard focus outlines are unaffected.
 
 ## [1.1.19] - 2026-07-11
 
@@ -309,7 +338,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
-- The inline code chip inside alerts no longer renders as a dead grey block in light mode. Its 35% black wash was tuned for dark backgrounds; over the light pink alert it read as mud. In light mode the chip is now a crisp near-white card with a hairline red keyline, so the decoded payload stands out cleanly.
+- The inline code chip inside alerts no longer renders as a dead gray block in light mode. Its 35% black wash was tuned for dark backgrounds; over the light pink alert it read as mud. In light mode the chip is now a crisp near-white card with a hairline red keyline, so the decoded payload stands out cleanly.
 
 ### Changed
 
@@ -352,7 +381,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
-- The menu's hover state no longer turns grey, and no longer sticks. Hovering used a grey panel tone that clashed with the brand language, and on phones a tap glued that grey pill to the last-tapped item because touch browsers keep a sticky hover. Hover styling now only applies on devices with a real pointer and uses a faint chartreuse brand tint, while the active item keeps the stronger chartreuse wash and always wins when it is both hovered and active.
+- The menu's hover state no longer turns gray, and no longer sticks. Hovering used a gray panel tone that clashed with the brand language, and on phones a tap glued that gray pill to the last-tapped item because touch browsers keep a sticky hover. Hover styling now only applies on devices with a real pointer and uses a faint chartreuse brand tint, while the active item keeps the stronger chartreuse wash and always wins when it is both hovered and active.
 - The active menu item now also carries `aria-current`, so screen readers hear which section you are in, kept in sync with the highlight by the same scroll logic.
 
 ## [1.1.5] - 2026-07-10
@@ -471,6 +500,7 @@ First stable release.
 - Dependency-free ES module engine (docs/checkup.js) with 13 Node tests.
 - Browser UI in the shared suite design with light and dark themes and a ?demo deep link.
 
+[1.3.0]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.0
 [1.2.31]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.2.31
 [1.2.30]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.2.30
 [1.2.29]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.2.29

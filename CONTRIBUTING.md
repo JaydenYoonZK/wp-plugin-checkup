@@ -19,7 +19,7 @@ Parsing or verdict changes need a test in test/checkup.test.mjs with fixed dates
 
 ## Thresholds
 
-The abandoned, stale, and low-install thresholds are constants at the top of checkup.js. If you think one is miscalibrated, open an issue with reasoning rather than changing it silently; these numbers shape every verdict.
+The abandoned and stale thresholds are constants at the top of checkup.js. If you think one is miscalibrated, open an issue with reasoning rather than changing it silently; these numbers shape every verdict. Install count is deliberately not a verdict input: a small, well-maintained plugin is not less healthy for being niche.
 
 ## Pull requests
 

@@ -21,7 +21,8 @@ themeToggle.addEventListener("click", () => {
     const vt = document.startViewTransition(() => {
       const next = document.documentElement.dataset.theme === "light" ? "dark" : "light";
       document.documentElement.dataset.theme = next;
-      localStorage.setItem("theme", next);
+      document.querySelector('meta[name="theme-color"]')?.setAttribute("content", next === "light" ? "#f6f4ee" : "#0d0c0a");
+      try { localStorage.setItem("theme", next); } catch { /* storage may be blocked */ }
       syncThemeIcon();
     });
     vt.finished.finally(() => document.documentElement.classList.remove("vt-active"));
@@ -32,10 +33,22 @@ themeToggle.addEventListener("click", () => {
   themeFadeTimer = setTimeout(() => document.documentElement.classList.remove("theme-fading"), 500);
   const next = document.documentElement.dataset.theme === "light" ? "dark" : "light";
   document.documentElement.dataset.theme = next;
-  localStorage.setItem("theme", next);
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", next === "light" ? "#f6f4ee" : "#0d0c0a");
+  try { localStorage.setItem("theme", next); } catch { /* storage may be blocked */ }
   syncThemeIcon();
 });
 syncThemeIcon();
+
+// SMIL animations are not covered by CSS reduced-motion rules, pause them.
+const svgMotion = matchMedia("(prefers-reduced-motion: reduce)");
+function applyReducedMotion() {
+  document.querySelectorAll("svg").forEach((el) => {
+    if (svgMotion.matches) el.pauseAnimations?.();
+    else el.unpauseAnimations?.();
+  });
+}
+applyReducedMotion();
+svgMotion.addEventListener?.("change", applyReducedMotion);
 
 const scene = document.querySelector(".bg-scene");
 if (scene && matchMedia("(pointer: fine)").matches && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
@@ -200,7 +213,9 @@ if (siteNav) {
 // tool opens without a connection after the first visit.
 if ("serviceWorker" in navigator) {
   addEventListener("load", () => {
-    navigator.serviceWorker.register("sw.js").catch(() => { /* offline support is optional */ });
+    // Project-absolute: the 404 page renders at arbitrary deep paths, where a
+    // relative registration would both miss the worker and narrow its scope.
+    navigator.serviceWorker.register("/wp-plugin-checkup/sw.js").catch(() => { /* offline support is optional */ });
   });
 }
 

@@ -5,7 +5,6 @@ Paste WordPress plugin slugs and review their public WordPress.org maintenance a
 <p>
   <a href="https://jaydenyoonzk.github.io/wp-plugin-checkup/"><img src="https://img.shields.io/badge/Live%20tool-open-abcf37?style=for-the-badge&logo=githubpages&logoColor=black" alt="Open the live tool"></a>
   <a href="https://github.com/JaydenYoonZK/wp-plugin-checkup/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/JaydenYoonZK/wp-plugin-checkup/ci.yml?branch=main&style=for-the-badge&label=tests" alt="CI status"></a>
-  <a href="https://github.com/JaydenYoonZK/wp-plugin-checkup"><img src="https://img.shields.io/github/stars/JaydenYoonZK/wp-plugin-checkup?style=for-the-badge&logo=github" alt="GitHub stars"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/JaydenYoonZK/wp-plugin-checkup?style=for-the-badge" alt="MIT License"></a>
 </p>
 
@@ -19,7 +18,7 @@ Paste WordPress plugin slugs and review their public WordPress.org maintenance a
 
 Plugin installations often outlive the task that introduced them. A public listing can close, updates can stop, or tested-up-to metadata can fall behind while the installed code keeps running. Those are useful review signals, but they are not vulnerability findings.
 
-- **No public listing.** This can mean a custom or commercial plugin, an incorrect slug, or a directory plugin that was closed. The plugin-information API does not distinguish those cases.
+- **No public listing.** This can mean a custom or commercial plugin, an incorrect slug, or a directory plugin that was closed. When WordPress.org explicitly reports a closure, the verdict includes the closure date and the directory's stated reason; the other cases need manual confirmation.
 - **Long update gap.** Two years without an update is a practical reason to review support history, compatibility, and maintained alternatives.
 
 This tool checks a whole plugin list against the live WordPress.org directory in seconds.
@@ -30,10 +29,11 @@ For each plugin it looks up the WordPress.org plugin API and returns a verdict:
 
 | Verdict | Meaning |
 |---|---|
-| **GONE** | No matching public listing. Confirm the slug and whether the plugin is custom, commercial, renamed, or closed. |
+| **GONE** | No matching public listing. Closures reported by WordPress.org include the closure date and reason; otherwise confirm whether the plugin is custom, commercial, or renamed. |
 | **ABANDONED** | No update in roughly two years or more. Review its support history. |
-| **CHECK** | Stale, tested against an older WordPress release, or missing evidence needed for a confident result. |
+| **CHECK** | Stale, tested only against WordPress two or more releases back, or missing evidence needed for a confident result. |
 | **HEALTHY** | Recently updated and tested with a current WordPress release. This is not a vulnerability verdict. |
+| **RETRY** | WordPress.org could not be reached or did not answer usably for this plugin. Nothing is known either way; run the check again. |
 
 The current WordPress version is fetched live from WordPress.org so "tested against an old version" stays accurate over time.
 
@@ -41,13 +41,14 @@ The current WordPress version is fetched live from WordPress.org so "tested agai
 
 Any of these, mixed freely, one per line:
 
-- Plain slugs: `woocommerce`
+- Plain slugs: `woocommerce`, one per line or space-separated (an `ls` of `wp-content/plugins/` pastes straight in)
 - Folder or file paths as WordPress stores them: `woocommerce/woocommerce.php`
 - Directory URLs: `https://wordpress.org/plugins/woocommerce/`
-- WP-CLI CSV and JSON output
+- WP-CLI table, CSV, JSON, and YAML output
+- Composer lines from a Bedrock-style setup: `wpackagist-plugin/woocommerce`
 - Full Windows or Unix paths containing `wp-content/plugins/<slug>/`
 
-The most reliable source is `wp plugin list --field=name`. WP-CLI can perform a related directory check itself with `wp plugin list --fields=name,wporg_status,wporg_last_updated`. Display names copied from the dashboard are not always directory slugs.
+The most reliable source is `wp plugin list --field=name`. WP-CLI can perform a related directory check itself with `wp plugin list --fields=name,wporg_status,wporg_last_updated`. Display names copied from the dashboard ("Contact Form 7") are not directory slugs, so the parser skips them and says so rather than guessing the wrong plugin.
 
 ## Privacy
 
@@ -70,11 +71,19 @@ npm run serve   # http://localhost:8421
 `docs/checkup.js` is a dependency-free ES module:
 
 ```js
-import { parseSlugs, apiUrl, verdict } from "./checkup.js";
+import { parseSlugs, apiUrl, pluginInfoFromApi, verdict } from "./checkup.js";
 
 const slugs = parseSlugs(pastedList);
-// fetch apiUrl(slug) yourself, then:
-const v = verdict(slug, info, { now: Date.now(), currentVersion: "7.0" });
+for (const slug of slugs) {
+  const res = await fetch(apiUrl(slug));
+  const data = await res.json().catch(() => null);
+  // pluginInfoFromApi is the step that keeps verdicts honest: it separates
+  // "closed by the directory", "never listed", and "API failure" before
+  // verdict() runs. Passing the raw response instead would misread every
+  // plugin as removed.
+  const info = pluginInfoFromApi(data, { ok: res.ok, status: res.status });
+  const v = verdict(slug, info, { now: Date.now(), currentVersion: "7.0" });
+}
 ```
 
 ## Tests
@@ -83,7 +92,7 @@ const v = verdict(slug, info, { now: Date.now(), currentVersion: "7.0" });
 npm test
 ```
 
-27 tests cover table, CSV, JSON, URL, and installed-path parsing; input limits; strict API dates and WordPress versions; API error classification; compatibility gaps; missing evidence; sorting; and every verdict path against fixed dates. Coverage is measured with `npm run test:coverage`.
+49 tests cover table, CSV, JSON, YAML, URL, composer, and installed-path parsing; space-separated lists; skipped-line reporting; input limits; strict API dates and WordPress versions; API error and closure classification; exact threshold boundaries; compatibility gaps; missing evidence; sorting; entity decoding; static page invariants; and every verdict path against fixed dates. Coverage is measured with `npm run test:coverage`.
 
 ## Limits
 

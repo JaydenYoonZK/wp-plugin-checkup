@@ -1,5 +1,5 @@
 /*! WP Plugin Checkup | Copyright (c) 2026 Jayden Yoon ZK | MIT License | https://github.com/JaydenYoonZK/wp-plugin-checkup */
-import { parseSlugs, apiUrl, directoryUrl, pluginInfoFromApi, verdict, parseWpVersion } from "./checkup.js?v=1.2.31";
+import { parseSlugsDetailed, apiUrl, directoryUrl, pluginInfoFromApi, verdict, parseWpVersion } from "./checkup.js?v=1.3.0";
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
@@ -50,6 +50,18 @@ async function timedFetch(url, options = {}, parentSignal) {
   }
 }
 
+// Memoized so run() can await the same request the page fires at boot; a
+// failed attempt clears the memo so the next run retries instead of running
+// every future check without a comparison point.
+let versionPromise = null;
+function ensureCurrentVersion() {
+  if (currentVersion) return Promise.resolve();
+  versionPromise ??= fetchCurrentVersion().finally(() => {
+    if (!currentVersion) versionPromise = null;
+  });
+  return versionPromise;
+}
+
 async function fetchCurrentVersion() {
   try {
     const res = await timedFetch("https://api.wordpress.org/core/stable-check/1.0/");
@@ -88,9 +100,12 @@ function rowHtml(slug, v) {
   const name = v && v.name ? `<span class="pname">${esc(v.name)}</span><div class="pmeta">${esc(v.meta || "")}</div>` : "";
   const detail = v ? esc(v.detail) : "checking WordPress.org...";
   const link = ` <a class="doclink" href="${directoryUrl(slug)}" rel="noopener" target="_blank">directory</a>`;
+  // Closed plugins keep the link: their directory page still exists and
+  // shows the closure notice. Unknown slugs have no page to link to.
+  const linkable = v && v.level !== "checking" && (v.level !== "removed" || v.closed);
   return `<td class="plug">${esc(slug)}${name ? "<br>" + name : ""}</td>
     <td>${pill}</td>
-    <td><span class="detail">${detail}</span>${v && v.level !== "removed" && v.level !== "checking" ? link : ""}</td>`;
+    <td><span class="detail">${detail}</span>${linkable ? link : ""}</td>`;
 }
 
 async function run() {
@@ -101,14 +116,18 @@ async function run() {
   activeRun = controller;
   syncControls();
   nowMs = Date.now();
-  let slugs;
+  let slugs, skipped;
   try {
-    slugs = parseSlugs(input.value);
+    ({ slugs, skipped } = parseSlugsDetailed(input.value));
   } catch (error) {
     running = false;
     activeRun = null;
     syncControls();
     results.hidden = false;
+    // a parse error replaces any previous run; stale rows under a fresh
+    // error read as results for the failed input
+    tbody.innerHTML = "";
+    summary.innerHTML = "";
     kindNote.textContent = error instanceof Error ? error.message : "Could not read that plugin list.";
     progressWrap.hidden = true;
     return;
@@ -119,15 +138,20 @@ async function run() {
   results.setAttribute("aria-busy", "false");
 
   if (!slugs.length) {
-    kindNote.textContent = "No plugin slugs found. Paste plugin names, folder/file.php paths, or wordpress.org plugin URLs.";
+    kindNote.textContent = "No plugin slugs found. Paste plugin slugs, folder/file.php paths, wordpress.org plugin URLs, or WP-CLI table, CSV, JSON, or YAML output. Display names alone (\"Contact Form 7\") cannot be matched safely, so they are skipped.";
     progressWrap.hidden = true;
     activeRun = null;
     return;
   }
 
   const list = slugs.slice(0, MAX_PLUGINS);
+  // Say what was understood AND what was not: silently dropping lines would
+  // let an unparsed plugin pass as checked.
+  const skipNote = skipped.length
+    ? ` ${skipped.length} line${skipped.length === 1 ? " was" : "s were"} skipped (not recognized as plugin identifiers): ${skipped.slice(0, 3).map(s => `"${s.length > 40 ? s.slice(0, 40) + "..." : s}"`).join(", ")}${skipped.length > 3 ? ` and ${skipped.length - 3} more` : ""}.`
+    : "";
   kindNote.textContent = `Checking ${list.length} plugin${list.length === 1 ? "" : "s"} against the WordPress.org directory` +
-    (slugs.length > MAX_PLUGINS ? `. Only the first ${MAX_PLUGINS} are checked; split larger lists to stay polite to the API.` : ".");
+    (slugs.length > MAX_PLUGINS ? `. Only the first ${MAX_PLUGINS} are checked; split larger lists to stay polite to the API.` : ".") + skipNote;
   progressWrap.hidden = false;
   progressBar.style.width = "0%";
   progressWrap.setAttribute("aria-valuenow", "0");
@@ -141,6 +165,12 @@ async function run() {
     tbody.appendChild(tr);
     return tr;
   });
+
+  // The tested-up-to comparison needs the current WordPress version; without
+  // this await, a click that lands before the boot fetch resolves would
+  // compute the first verdicts with no comparison point.
+  await ensureCurrentVersion();
+  if (id !== runId || controller.signal.aborted) return;
 
   const verdicts = new Array(list.length);
   const queue = list.map((slug, i) => ({ slug, i }));
@@ -251,7 +281,7 @@ clearBtn.addEventListener("click", () => {
 });
 syncControls();
 
-fetchCurrentVersion().then(() => {
+ensureCurrentVersion().then(() => {
   if (new URLSearchParams(location.search).has("demo")) loadSample();
 });
 
@@ -272,7 +302,8 @@ themeToggle.addEventListener("click", () => {
     const vt = document.startViewTransition(() => {
       const next = document.documentElement.dataset.theme === "light" ? "dark" : "light";
       document.documentElement.dataset.theme = next;
-      localStorage.setItem("theme", next);
+      document.querySelector('meta[name="theme-color"]')?.setAttribute("content", next === "light" ? "#f6f4ee" : "#0d0c0a");
+      try { localStorage.setItem("theme", next); } catch { /* storage may be blocked */ }
       syncThemeIcon();
     });
     vt.finished.finally(() => document.documentElement.classList.remove("vt-active"));
@@ -283,10 +314,22 @@ themeToggle.addEventListener("click", () => {
   themeFadeTimer = setTimeout(() => document.documentElement.classList.remove("theme-fading"), 500);
   const next = document.documentElement.dataset.theme === "light" ? "dark" : "light";
   document.documentElement.dataset.theme = next;
-  localStorage.setItem("theme", next);
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", next === "light" ? "#f6f4ee" : "#0d0c0a");
+  try { localStorage.setItem("theme", next); } catch { /* storage may be blocked */ }
   syncThemeIcon();
 });
 syncThemeIcon();
+
+// SMIL animations are not covered by CSS reduced-motion rules, pause them.
+const svgMotion = matchMedia("(prefers-reduced-motion: reduce)");
+function applyReducedMotion() {
+  document.querySelectorAll("svg").forEach((el) => {
+    if (svgMotion.matches) el.pauseAnimations?.();
+    else el.unpauseAnimations?.();
+  });
+}
+applyReducedMotion();
+svgMotion.addEventListener?.("change", applyReducedMotion);
 
 // Scroll spy: the active menu item is the last section whose heading sits
 // at or above the reading line just below the sticky header. Computed from
