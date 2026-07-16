@@ -3,6 +3,12 @@
 All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.3.1] - 2026-07-17
+
+### Fixed
+
+- The test runner is invoked with explicit file paths instead of a shell glob. PowerShell does not expand globs and Node 20's test runner does not either, so the 1.3.0 suite could not start on Windows CI while every other platform expanded the pattern in bash first.
+
 ## [1.3.0] - 2026-07-17
 
 A deep quality pass from an adversarial review. The headline fixes stop the two ways this tool could assert a wrong verdict.
@@ -500,6 +506,7 @@ First stable release.
 - Dependency-free ES module engine (docs/checkup.js) with 13 Node tests.
 - Browser UI in the shared suite design with light and dark themes and a ?demo deep link.
 
+[1.3.1]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.1
 [1.3.0]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.0
 [1.2.31]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.2.31
 [1.2.30]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.2.30

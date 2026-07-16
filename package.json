@@ -1,13 +1,13 @@
 {
   "name": "wp-plugin-checkup",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "description": "Check WordPress plugins against WordPress.org for removed, abandoned, and untested ones. Browser-based, no dependencies.",
   "type": "module",
   "private": true,
   "scripts": {
     "check": "node --check docs/checkup.js && node --check docs/app.js",
-    "test": "node --test test/*.test.mjs",
-    "test:coverage": "node --experimental-test-coverage --test test/*.test.mjs",
+    "test": "node --test test/checkup.test.mjs test/site.test.mjs",
+    "test:coverage": "node --experimental-test-coverage --test test/checkup.test.mjs test/site.test.mjs",
     "serve": "python3 -m http.server 8421 -d docs"
   },
   "engines": {
