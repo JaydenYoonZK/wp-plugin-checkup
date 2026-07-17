@@ -976,3 +976,44 @@ test("tree variants: -F suffixes and full-depth descents parse plugins only", ()
   // inside the plugins subtree, an entry named like a core dir IS a plugin
   assert.deepEqual(parseSlugs("plugins\n├── akismet\n├── uploads\n└── wordpress-seo"), ["akismet", "uploads", "wordpress-seo"]);
 });
+
+
+/* ------- regressions from the fifteenth adversarial round (v1.3.15) ------- */
+
+test("ls -R section paths may contain spaces (Local by Flywheel layouts)", () => {
+  const base = "/Users/me/Local Sites/demo/app/public/wp-content/plugins";
+  const lsr = parseSlugsDetailed(base + ":\nakismet\ncontact-form-7\n\n" + base + "/akismet:\nakismet.php\nviews\n\n" + base + "/akismet/views:\nconfig.php\nlogo.php\nnotice.php\nstats.php");
+  assert.deepEqual(lsr.slugs, ["akismet", "contact-form-7"]);
+  assert.deepEqual(lsr.skipped, []);
+});
+
+test("plain ls of wp-content lists directories, not plugins", () => {
+  const piped = parseSlugsDetailed("languages\nmu-plugins\nplugins\nthemes\nupgrade\nuploads");
+  assert.deepEqual(piped.slugs, []);
+  assert.deepEqual(piped.skipped, []);
+  assert.deepEqual(parseSlugsDetailed("mu-plugins themes uploads").slugs, []);
+  // a deliberate lone "plugins" line still resolves
+  assert.deepEqual(parseSlugs("plugins"), ["plugins"]);
+});
+
+test("an ls -R section releases its latch at the next command", () => {
+  const copy = parseSlugsDetailed("plugins/akismet:\nakismet.php\nviews\n$ wp plugin list --field=name\njetpack\nwordfence");
+  assert.deepEqual(copy.slugs, ["jetpack", "wordfence"]);
+});
+
+test("ls -l long listings parse their trailing names", () => {
+  const lsl = parseSlugsDetailed("total 0\ndrwxr-xr-x@ 14 me  wheel  448 Jul 17 15:26 akismet\ndrwxr-xr-x   9 me  wheel  288 Jul 17 15:26 contact-form-7\n-rw-r--r--   1 me  wheel  2313 Jul 17 15:26 hello.php");
+  assert.deepEqual(lsl.slugs, ["akismet", "contact-form-7", "hello-dolly"]);
+  assert.deepEqual(lsl.skipped, []);
+});
+
+test("core-subtree files and dotfiles are listing framing", () => {
+  // translations live at languages/plugins/ and are not plugin content;
+  // a plugin's OWN languages dir still captures the plugin
+  const found = parseSlugsDetailed("wp-content/themes/twentytwentyfive/style.css\nwp-content/languages/plugins/akismet-ru_RU.mo\nwp-content/plugins/akismet");
+  assert.deepEqual(found.slugs, ["akismet"]);
+  assert.deepEqual(found.skipped, []);
+  assert.equal(slugFromLine("wp-content/plugins/akismet/languages/akismet-ru_RU.mo"), "akismet");
+  // tree -a hidden entries stay quiet
+  assert.deepEqual(parseSlugsDetailed("plugins\n├── .htaccess\n├── akismet\n└── wordpress-seo").skipped, []);
+});

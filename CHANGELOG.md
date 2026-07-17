@@ -3,6 +3,18 @@
 All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.3.15] - 2026-07-17
+
+A fifteenth adversarial round attacked with real fixtures at real paths and finished the listing family.
+
+### Fixed
+
+- ls -R section paths may contain spaces: Local by Flywheel's default "~/Local Sites/..." layout defeated the section logic, so a plugin's view files minted false closure alarms for the real closed plugins "stats", "logo", and "notice". Space-bearing headers are recognized now, and an installed copy of the "Plugins" plugin no longer reopens section parsing.
+- Plain ls of wp-content lists directories, not plugins: a run of bare core directory names ("plugins" among them, which is a real abandoned plugin) is a wp-content listing whether piped one per line or in terminal columns. A deliberate lone "plugins" paste still resolves.
+- An ls -R section releases its latch at the next command: terminal copies of a short session no longer lose the second command's plugin list to the tail of the first (ls -R prints no trailing blank line).
+- ls -l long listings parse their trailing names, symlinks and total lines included.
+- Core-subtree files are listing framing: theme files, uploads, and translations (including the languages/plugins/*.mo files) stay out of the skip note, while a path entering plugins/ first is plugin content, and a plugin's own languages directory still captures the plugin. tree -a's hidden entries stay quiet too.
+
 ## [1.3.14] - 2026-07-17
 
 A fourteenth adversarial round built a real wp-content with a real Akismet and ran the real commands.
@@ -653,6 +665,7 @@ First stable release.
 - Dependency-free ES module engine (docs/checkup.js) with 13 Node tests.
 - Browser UI in the shared suite design with light and dark themes and a ?demo deep link.
 
+[1.3.15]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.15
 [1.3.14]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.14
 [1.3.13]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.13
 [1.3.12]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.12

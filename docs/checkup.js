@@ -170,6 +170,7 @@ export function slugListTokens(line) {
   // re-check the cleaned tokens: stripping "w/" must not resurrect a filler
   if (cleaned.some(t => STOP_WORDS.has(t))) return null;
   if (cleaned.every(t => isColumnLabel(t))) return null;
+  if (cleaned.every(t => WP_DIR_WORD_RE.test(t))) return null;
   if (!cleaned.every(t => SLUG_RE.test(t) && !/^\d+$/.test(t))) return null;
   // core cron hooks and schedule names ride along in wp cron ids output;
   // they are scheduler vocabulary, not plugins
@@ -189,6 +190,13 @@ export function slugFromLine(line) {
 
   // email-quote prefixes and checklist markers
   s = stripLineDecorations(s);
+
+  // an ls -l row: permissions, links, owner, group, size, date, NAME
+  if (/^[dlbcsp-][rwxsStT+@.-]{8,}\s/.test(s)) {
+    const parts = s.split(/\s+/).filter(Boolean);
+    const arrow = parts.indexOf("->");
+    s = (arrow > 0 ? parts[arrow - 1] : parts[parts.length - 1]) || "";
+  }
 
   // a PHP array entry from wp option get active_plugins:  0 => 'akismet/akismet.php',
   const arrayEntry = /^\d+\s*=>\s*["']([^"']+)["'],?$/.exec(s);
@@ -400,6 +408,10 @@ function isStructuralLine(line) {
   if (words.length === 1 && FILE_ALIASES.get(words[0].replace(/\.php$/i, "")) === null) return true;
   if (words.length === 1 && CORE_CRON_WORDS.has(words[0])) return true;
   if (words.length >= 2 && words.every(w => CORE_CRON_WORDS.has(w))) return true;
+  // hidden entries surfaced by tree -a / ls -a are framing
+  if (words.length === 1 && /^\.[A-Za-z0-9._-]*$/.test(words[0])) return true;
+  // a run of bare core directory names is a wp-content listing row
+  if (words.every(w => WP_DIR_WORD_RE.test(w))) return true;
   // a lone underscore compound of column words is a db/table heading
   if (words.length === 1 && /_/.test(words[0]) && isColumnLabel(words[0])) return true;
   if (words.length >= 2 && words.every(w => isColumnLabel(w))) return true;
@@ -415,10 +427,19 @@ function isStructuralLine(line) {
   if (/^(?:by|view|visit)\s+\S/i.test(s)) return true;
   // Markdown code fences around a pasted debug report
   if (/^`+$/.test(s)) return true;
-  // tree(1) summary trailer, whole or comma-split
+  // tree(1) summary trailer, whole or comma-split; ls -l total line
   if (/^\d+\s+(?:director(?:y|ies)|files?)(?:,\s*\d+\s+files?)?,?$/i.test(s)) return true;
+  if (/^total\s+\d+$/i.test(s)) return true;
   // the silence-is-golden stubs inside a core directory listing
   if (/(?:^|[\s/])(?:wp-content|plugins|mu-plugins|themes|uploads|languages|upgrade)\/index\.php\/?$/i.test(s)) return true;
+  // deep paths under the non-plugin core subtrees (a theme file, an upload,
+  // a translation, including languages/plugins/*.mo) are find/ls framing;
+  // a path that enters plugins/ FIRST is plugin content
+  if (!/\s/.test(s)) {
+    const framingIdx = s.search(/(?:^|\/)(?:themes|uploads|languages|upgrade)\//i);
+    const pluginsIdx = s.search(/(?:^|\/)(?:mu-)?plugins\//i);
+    if (framingIdx !== -1 && (pluginsIdx === -1 || framingIdx < pluginsIdx)) return true;
+  }
   // the root line of a find/tree listing: a path ENDING at a WordPress
   // directory is framing, its entries carry the plugins (a plugins/x
   // capture means x IS the plugin, even if x is "uploads")
@@ -481,9 +502,12 @@ export function parseSlugsDetailed(input) {
     // listing beneath it still resolves as a deliberate slug.
     if (!json && WP_DIR_WORD_RE.test(raw.trim())) {
       const next = String(lines[li + 1] ?? "").trim();
+      const prev = String(lines[li - 1] ?? "").trim();
       const afterBlank = String(lines[li + 2] ?? "").trim();
       if (parseTreeLine(next) || next.toLowerCase().startsWith(raw.trim().toLowerCase() + "/") ||
-          (!next && TREE_TRAILER_RE.test(afterBlank))) {
+          (!next && TREE_TRAILER_RE.test(afterBlank)) ||
+          // a run of bare directory words is an ls of wp-content itself
+          WP_DIR_WORD_RE.test(next) || WP_DIR_WORD_RE.test(prev)) {
         if (/^(?:mu-)?plugins$/i.test(raw.trim())) treePluginsPrefix = -1;
         continue;
       }
@@ -492,13 +516,22 @@ export function parseSlugsDetailed(input) {
     let expanded = false; // items are fragments of the line, reported per item
     // an ls -R section header ("plugins/akismet/views:"): sections at the
     // plugins root list plugins, deeper sections list a plugin's own files
-    const lsHeader = !json ? /^([^\s:]+):$/.exec(raw.trim()) : null;
+    const lsHeader = !json ? /^([^:]+):$/.exec(raw.trim()) : null;
     if (lsHeader && (lsHeader[1].includes("/") || lsHeader[1] === "." || WP_DIR_WORD_RE.test(lsHeader[1]))) {
       const path = lsHeader[1].replace(/\/+$/, "");
-      lsSectionSkip = !(path === "." || /(?:^|\/)(?:wp-content\/)?(?:mu-)?plugins$/i.test(path));
+      // a plugins root ends the skip; an installed plugin named "plugins"
+      // (plugins/plugins) is a plugin's own directory, not a second root
+      lsSectionSkip = !((path === "." || /(?:^|\/)(?:wp-content\/)?(?:mu-)?plugins$/i.test(path)) &&
+        !/plugins\/(?:mu-)?plugins$/i.test(path));
       continue;
     }
-    if (lsSectionSkip && raw.trim()) continue;
+    if (lsSectionSkip && raw.trim()) {
+      // the latch holds only for filename-shaped entries; a prompt or a new
+      // command's output ends the section (ls -R prints no trailing blank)
+      const entryShaped = raw.trim().split(/\s+/).every(t => /^[A-Za-z0-9._@-]+$/.test(t));
+      if (entryShaped) continue;
+      lsSectionSkip = false;
+    }
     // tree(1) branch lines, either charset: directory nodes are structure,
     // and the children of a themes/uploads subtree are not plugins
     const tl = !json ? parseTreeLine(raw) : null;
