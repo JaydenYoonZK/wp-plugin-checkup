@@ -3,6 +3,15 @@
 All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.3.11] - 2026-07-17
+
+An eleventh adversarial round walked eight admin personas end to end (six clean) and closed the two gaps it found.
+
+### Fixed
+
+- The stock cron hook vocabulary is complete: wp_delete_temp_updater_backups (scheduled weekly on every WordPress 6.3+ site that ever ran an update), multisite's update_network_counts, and 7.1's upcoming privacy-cleanup hook no longer mint removal verdicts from wp cron event list ids output.
+- Prose-bearing comma lines report whole instead of leaking name fragments. Site Health and wp-admin rows for popular real plugins carry commas in their author lists and descriptions ("author: TeamUpdraft, DavidAnderson", "WP-Optimize - Clean, Compress, Cache"), and the fragments were minting false removal rows. A line with a capitalized multi-word field or a key: value field is a metadata row now; hand-typed capitalized comma lists ("Akismet, Jetpack, Wordfence") still resolve, and email greetings ("Hi,") never become verdicts.
+
 ## [1.3.10] - 2026-07-17
 
 A tenth adversarial round replayed every canonical paste from the previous nine (all clean) and finished the wp cron family.
@@ -615,6 +624,7 @@ First stable release.
 - Dependency-free ES module engine (docs/checkup.js) with 13 Node tests.
 - Browser UI in the shared suite design with light and dark themes and a ?demo deep link.
 
+[1.3.11]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.11
 [1.3.10]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.10
 [1.3.9]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.9
 [1.3.8]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.8

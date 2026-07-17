@@ -671,7 +671,11 @@ test("a Site Health debug copy reports names without phantoms or trailer noise",
   ].join("\n");
   const parsed = parseSlugsDetailed(copy);
   assert.deepEqual(parsed.slugs, []);
-  assert.deepEqual(parsed.skipped, ["Akismet Anti-spam: Spam Protection: version 5.3.7", "Jetpack: version 14.5"]);
+  // prose rows report whole, so name fragments never mint slugs
+  assert.deepEqual(parsed.skipped, [
+    "Akismet Anti-spam: Spam Protection: version 5.3.7, author: Automattic, Auto-updates enabled",
+    "Jetpack: version 14.5, author: Automattic, Auto-updates disabled"
+  ]);
 });
 
 
@@ -689,7 +693,7 @@ test("Site Health metadata comma lists never mint slugs", () => {
   const copy = "`\n### wp-plugins-active (1) ###\n\nJetpack: version 14.5, author: Automattic, Auto-updates disabled\n\n### wp-media ###\n\ngd_formats: GIF, PNG\n`";
   const parsed = parseSlugsDetailed(copy);
   assert.deepEqual(parsed.slugs, []);
-  assert.deepEqual(parsed.skipped, ["Jetpack: version 14.5"]);
+  assert.deepEqual(parsed.skipped, ["Jetpack: version 14.5, author: Automattic, Auto-updates disabled"]);
 });
 
 test("wp plugin get parses plugins whose slug is itself a column word", () => {
@@ -868,4 +872,31 @@ test("core cron hooks are scheduler vocabulary, not plugins", () => {
   assert.deepEqual(parseSlugs("wp_version_check akismet_scheduled_delete"), ["akismet_scheduled_delete"]);
   // real underscore plugins are untouched
   assert.deepEqual(parseSlugs("serve_static f12_configurator"), ["serve_static", "f12_configurator"]);
+});
+
+
+/* --------- regressions from the eleventh adversarial round (v1.3.11) --------- */
+
+test("the full stock cron hook set is scheduler vocabulary", () => {
+  // every WP >= 6.3 site that ever ran an update carries
+  // wp_delete_temp_updater_backups; multisite adds update_network_counts
+  const ids = parseSlugsDetailed("wp_privacy_delete_old_export_files wp_version_check wp_update_plugins wp_update_themes recovery_mode_clean_expired_keys wp_scheduled_delete delete_expired_transients wp_scheduled_auto_draft_delete wp_update_user_counts wp_site_health_scheduled_check wp_delete_temp_updater_backups");
+  assert.deepEqual(ids.slugs, []);
+  assert.deepEqual(ids.skipped, []);
+  assert.deepEqual(parseSlugs("update_network_counts"), []);
+});
+
+test("prose-bearing comma lines report whole instead of leaking name fragments", () => {
+  // Site Health / wp-admin rows for real popular plugins: the author list
+  // and feature names must not mint slugs ("davidanderson", "compress",
+  // "dropbox" all render as false removal rows otherwise)
+  const updraft = parseSlugsDetailed("UpdraftPlus - Backup/Restore: version: 1.26.5, author: TeamUpdraft, DavidAnderson, Auto-updates disabled");
+  assert.deepEqual(updraft.slugs, []);
+  assert.equal(updraft.skipped.length, 1);
+  assert.deepEqual(parseSlugs("WP-Optimize - Clean, Compress, Cache"), []);
+  assert.deepEqual(parseSlugs("Backup and restore: take backups locally, or backup to Amazon S3, Dropbox, Google Drive, Rackspace, on automatic schedules."), []);
+  // email greetings never become verdicts; the list between them parses
+  assert.deepEqual(parseSlugsDetailed("Hi,\nakismet\nThanks,").slugs, ["akismet"]);
+  // hand-typed capitalized comma LISTS still resolve
+  assert.deepEqual(parseSlugs("Akismet, Jetpack, Wordfence"), ["akismet", "jetpack", "wordfence"]);
 });

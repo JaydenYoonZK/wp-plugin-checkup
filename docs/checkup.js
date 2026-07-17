@@ -92,7 +92,9 @@ const CORE_CRON_WORDS = new Set([
   "wp_scheduled_delete", "delete_expired_transients",
   "wp_scheduled_auto_draft_delete", "recovery_mode_clean_expired_keys",
   "wp_site_health_scheduled_check", "wp_https_detection",
-  "wp_privacy_delete_old_export_files", "wp_update_user_counts"
+  "wp_privacy_delete_old_export_files", "wp_update_user_counts",
+  "wp_delete_temp_updater_backups", "update_network_counts",
+  "wp_privacy_personal_data_cleanup_requests"
 ]);
 // Header field sets whose "name" column is NOT a plugin (wp cron schedule
 // list names its SCHEDULES). Matching headers suppress identity tracking.
@@ -594,13 +596,32 @@ export function parseSlugsDetailed(input) {
         } else if (WPCLI_STATUSES.has(lower[1])) {
           items = [fields[0]];
         } else {
-          // headerless list: statuses, update values, versions, and bare
-          // numbers riding along in other columns are furniture, not slugs
-          items = fields.filter(f => {
-            const w = f.replace(/^"|"$/g, "").trim().toLowerCase();
-            return w && !UI_FRAMING_WORDS.has(w) && !VERSION_TOKEN_RE.test(w) && !/^\d+$/.test(w);
+          // a comma line carrying prose (a capitalized multi-word field or
+          // a "key: value" field) is a display-name/author/description row
+          // from Site Health or wp-admin; splitting it would mint its
+          // capitalized fragments ("DavidAnderson", "Dropbox") as slugs
+          const proseLine = fields.some(f => {
+            const t = f.replace(/^"|"$/g, "").trim();
+            return (/\s/.test(t) && /[A-Z]/.test(t)) || /^[A-Za-z_-]+:\s/.test(t);
           });
-          expanded = true;
+          const nonEmpty = fields.map(f => f.replace(/^"|"$/g, "").trim()).filter(Boolean);
+          const loneGreeting = nonEmpty.length === 1 &&
+            /^[A-Za-z][A-Za-z0-9-]*$/.test(nonEmpty[0]) && /[A-Z]/.test(nonEmpty[0]);
+          if (proseLine || loneGreeting) {
+            // report the line once; an email greeting ("Hi,") or a name
+            // fragment never becomes a verdict
+            items = [];
+            expanded = true;
+            skipped.push(raw.trim());
+          } else {
+            // headerless list: statuses, update values, versions, and bare
+            // numbers riding along in other columns are furniture, not slugs
+            items = fields.filter(f => {
+              const w = f.replace(/^"|"$/g, "").trim().toLowerCase();
+              return w && !UI_FRAMING_WORDS.has(w) && !VERSION_TOKEN_RE.test(w) && !/^\d+$/.test(w);
+            });
+            expanded = true;
+          }
         }
       }
     } else if (!json) {
