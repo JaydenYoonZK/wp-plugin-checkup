@@ -224,7 +224,7 @@ test("unknown API errors never become directory-removal verdicts", () => {
 });
 
 
-/* ------------------- regressions from the deep quality pass ------------------- */
+/* ------------------- v1.3.0 regressions ------------------- */
 
 test("closed plugins get a removal verdict with the closure date and reason", () => {
   // the real API shape for a closed listing: HTTP 404 with error:"closed"
@@ -441,7 +441,7 @@ test("WP-CLI pipe header rows are framing, not skipped content", () => {
 });
 
 
-/* --------- regressions from the third adversarial round (v1.3.3) --------- */
+/* --------- v1.3.3 regressions --------- */
 
 test("a wp-admin Plugins-page copy never yields phantom verdicts", () => {
   // the most common paste this tool will receive: name line, row-action
@@ -529,7 +529,7 @@ test("Markdown alignment rows are borders, and ambiguous pipe rows are reported"
 });
 
 
-/* --------- regressions from the fourth adversarial round (v1.3.4) --------- */
+/* --------- v1.3.4 regressions --------- */
 
 test("multi-column folder listings parse every entry (ls -F, ls -p, grep pairs)", () => {
   // the first-path-segment rule must never swallow a whole grid line
@@ -591,7 +591,7 @@ test("forwarded and wrapped table framing stays out of the skip note", () => {
 });
 
 
-/* ---------- regressions from the fifth adversarial round (v1.3.5) ---------- */
+/* ---------- v1.3.5 regressions ---------- */
 
 test("wp plugin get output recovers the plugin from its assoc table", () => {
   // the Field/Value table of `wp plugin get akismet`: identity lives in the
@@ -679,7 +679,7 @@ test("a Site Health debug copy reports names without phantoms or trailer noise",
 });
 
 
-/* ---------- regressions from the sixth adversarial round (v1.3.6) ---------- */
+/* ---------- v1.3.6 regressions ---------- */
 
 test("Site Health metadata comma lists never mint slugs", () => {
   // theme_features / gd_formats / imagemagick_file_formats lines appear in
@@ -722,7 +722,7 @@ test("wp option get active_plugins parses its var_export array", () => {
 });
 
 
-/* --------- regressions from the seventh adversarial round (v1.3.7) --------- */
+/* --------- v1.3.7 regressions --------- */
 
 test("wp db query output against wp_options never mints column phantoms", () => {
   // mysql batch headers: option_value alone, or the SELECT * TSV header
@@ -773,7 +773,7 @@ test("a header without an identity column marks its rows as reported, not guesse
 });
 
 
-/* ---------- regressions from the eighth adversarial round (v1.3.8) ---------- */
+/* ---------- v1.3.8 regressions ---------- */
 
 test("find and tree listings parse entries and silence their root line", () => {
   // find's first output line is the directory itself; "wp-content" and
@@ -812,7 +812,7 @@ test("search-yaml display names never lowercase into slugs", () => {
 });
 
 
-/* ---------- regressions from the ninth adversarial round (v1.3.9) ---------- */
+/* ---------- v1.3.9 regressions ---------- */
 
 test("wp-env manifests resolve GitHub sources, zip URLs, and inline arrays", () => {
   // "WordPress/gutenberg#trunk" names the REPO; "wordpress" is not a plugin
@@ -847,7 +847,7 @@ test("path listings keep stub files and plugins slugged like directories", () =>
 });
 
 
-/* ---------- regressions from the tenth adversarial round (v1.3.10) ---------- */
+/* ---------- v1.3.10 regressions ---------- */
 
 test("wp cron schedule list never mints schedule names as plugins", () => {
   // name/display/interval tables name SCHEDULES; hourly, daily, and friends
@@ -875,7 +875,7 @@ test("core cron hooks are scheduler vocabulary, not plugins", () => {
 });
 
 
-/* --------- regressions from the eleventh adversarial round (v1.3.11) --------- */
+/* --------- v1.3.11 regressions --------- */
 
 test("the full stock cron hook set is scheduler vocabulary", () => {
   // every WP >= 6.3 site that ever ran an update carries
@@ -902,7 +902,7 @@ test("prose-bearing comma lines report whole instead of leaking name fragments",
 });
 
 
-/* --------- regression from the twelfth adversarial round (v1.3.12) --------- */
+/* --------- v1.3.12 regressions --------- */
 
 test("bare tree/find operands head their listing, they are not the Plugins plugin", () => {
   // `tree plugins` from inside wp-content prints its operand first; the
@@ -919,7 +919,7 @@ test("bare tree/find operands head their listing, they are not the Plugins plugi
 });
 
 
-/* ------- regressions from the thirteenth adversarial round (v1.3.13) ------- */
+/* ------- v1.3.13 regressions ------- */
 
 test("a JSON array line behind a preamble parses every plugin", () => {
   // copying the command with its output is how terminals get copied
@@ -948,7 +948,7 @@ test("tree output parses in both charsets, at any depth, for any root", () => {
 });
 
 
-/* ------- regressions from the fourteenth adversarial round (v1.3.14) ------- */
+/* ------- v1.3.14 regressions ------- */
 
 test("real wp-content listings: core dirs are structure in every tool", () => {
   // languages/ and upgrade/ exist on real installs; neither is a plugin
@@ -978,7 +978,7 @@ test("tree variants: -F suffixes and full-depth descents parse plugins only", ()
 });
 
 
-/* ------- regressions from the fifteenth adversarial round (v1.3.15) ------- */
+/* ------- v1.3.15 regressions ------- */
 
 test("ls -R section paths may contain spaces (Local by Flywheel layouts)", () => {
   const base = "/Users/me/Local Sites/demo/app/public/wp-content/plugins";
@@ -1031,7 +1031,7 @@ test("section latches survive odd filenames and prose colons are not headers", (
 });
 
 
-/* ------- regressions from the sixteenth adversarial round (v1.3.16) ------- */
+/* ------- v1.3.16 regressions ------- */
 
 test("section latches release only on positive command evidence", () => {
   // filenames and prompts are indistinguishable by shape; quoted, spaced,
@@ -1065,7 +1065,7 @@ test("ls -l stub rows and translation sections stay out of the skip note", () =>
 });
 
 
-/* ----- regressions from the seventeenth adversarial round (v1.3.17) ----- */
+/* ----- v1.3.17 regressions ----- */
 
 test("real shell prompts release the ls -R latch (no silent drop)", () => {
   // an ubuntu@host:/path$ prompt is a command line, not a filename entry
