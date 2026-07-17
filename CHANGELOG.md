@@ -3,6 +3,18 @@
 All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.3.9] - 2026-07-17
+
+A ninth adversarial round covered developer manifests and scheduler screens, and caught the eighth round's root-line rule over-reaching.
+
+### Fixed
+
+- .wp-env.json manifests parse honestly: a GitHub source names its repo ("WordPress/gutenberg#trunk" is gutenberg, never a phantom "wordpress"), canonical download URLs name their plugin (downloads.wordpress.org/plugin/akismet.zip, versioned or quoted), one-line "plugins" arrays expand per element instead of vanishing, and a bare Owner/repo without a ref stays ambiguous with feedback.
+- A plugin genuinely slugged like a WordPress directory ("uploads" is a real closed plugin) parses from path listings: a plugins/ capture now wins over the find/tree root-line rule instead of being silently classified as framing.
+- ls -d grids containing the stock hello.php and index.php stubs parse every entry; the stub tokens no longer reject the whole line into a first-match swallow.
+- wp cron event list and wp site list CSV headers are recognized as furniture, so hook and column names stop minting "Not in the directory" rows; the identity-less data rows report for the user instead.
+- The REST API's plugin key resolves its dir/file value at extraction, so JSON lines keep parsing while bare two-segment pairs without a file extension stay ambiguous.
+
 ## [1.3.8] - 2026-07-17
 
 An eighth adversarial round swept the remaining filesystem and search screens.
@@ -594,6 +606,7 @@ First stable release.
 - Dependency-free ES module engine (docs/checkup.js) with 13 Node tests.
 - Browser UI in the shared suite design with light and dark themes and a ?demo deep link.
 
+[1.3.9]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.9
 [1.3.8]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.8
 [1.3.7]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.7
 [1.3.6]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.6

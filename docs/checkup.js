@@ -28,7 +28,10 @@ const COLUMN_NAMES = new Set([
   // wp plugin get prints an assoc Field/Value table; verify-checksums
   // reports plugin_name/file/message columns; author appears in both;
   // option/autoload cover wp db query output against wp_options
-  "field", "value", "author", "message", "option", "autoload", "id"
+  "field", "value", "author", "message", "option", "autoload", "id",
+  // wp cron event list and wp site list headers
+  "hook", "recurrence", "schedule", "next_run", "next_run_gmt",
+  "next_run_relative", "blog_id", "site_id", "url", "domain", "registered", "public"
 ]);
 // The metadata keys a wp plugin get assoc table can print. A 2-cell row
 // whose key is none of these ends the assoc block: it belongs to whatever
@@ -127,7 +130,7 @@ export function slugListTokens(line) {
     // "akismet/akismet.php" from the conjunction "and/or"), and an
     // interactive ls -d grid puts several full plugin paths on one line
     let w = t.replace(/\/+$/, "");
-    const deep = /(?:^|\/)(?:wp-content\/)?plugins\/([a-z0-9_-]+)$/.exec(w);
+    const deep = /(?:^|\/)(?:wp-content\/)?plugins\/([a-z0-9_.-]+)$/.exec(w);
     if (deep) w = deep[1];
     const pair = /^([a-z0-9_-]+)\/[a-z0-9_-]+\.[a-z0-9.]+$/.exec(w);
     if (pair) w = pair[1];
@@ -157,6 +160,15 @@ export function slugFromLine(line) {
   const arrayEntry = /^\d+\s*=>\s*["']([^"']+)["'],?$/.exec(s);
   if (arrayEntry) s = arrayEntry[1];
 
+  // a wp-env GitHub source names owner/repo#ref: the REPO is the plugin
+  // ("WordPress/gutenberg#trunk" is gutenberg, never "wordpress")
+  const github = /^["']?([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)#\S+?["']?,?$/.exec(s);
+  if (github) s = github[2];
+
+  // a quoted URL element of a manifest array ("https://...zip",)
+  const quotedUrl = /^["'](https?:\/\/[^"']+)["'],?$/i.exec(s);
+  if (quotedUrl) s = quotedUrl[1];
+
   // WP-CLI YAML list item: "- name: akismet" (also "slug: x" / "plugin: x").
   // A name: value that is not already slug-shaped is a DISPLAY name (wp
   // plugin search yaml prints "name: Broadcast" beside "slug: threewp-
@@ -180,6 +192,8 @@ export function slugFromLine(line) {
   const jsonMember = !composer && /"(plugin_name|name|slug|plugin)"\s*:\s*"([^"]+)"/.exec(s);
   if (jsonMember && !(jsonMember[1] === "name" && jsonMember[2].includes("/"))) {
     s = jsonMember[2];
+    // the REST "plugin" key holds "dir/file"; the dir is the slug
+    if (jsonMember[1] === "plugin" && s.includes("/")) s = s.split("/").filter(Boolean)[0] || "";
   }
 
   // WP-CLI table row: | akismet | active | ... |  ->  first cell
@@ -194,24 +208,35 @@ export function slugFromLine(line) {
       const host = url.hostname.toLowerCase();
       if (host !== "wordpress.org" && !host.endsWith(".wordpress.org")) return null;
       const parts = url.pathname.split("/").filter(Boolean);
-      const index = parts.indexOf("plugins");
-      s = index !== -1 ? parts[index + 1] || "" : "";
+      // the canonical download URL names the plugin: downloads.wordpress
+      // .org/plugin/<slug>[.version].zip
+      if (host === "downloads.wordpress.org" && parts[0] === "plugin" && parts[1]) {
+        const zip = /^([a-z0-9_-]+?)(?:\.\d[\d.]*)?\.zip$/i.exec(parts[1]);
+        s = zip ? zip[1] : "";
+      } else {
+        const index = parts.indexOf("plugins");
+        s = index !== -1 ? parts[index + 1] || "" : "";
+      }
       // wordpress.org/plugins/search/... and /plugins/tags/... are directory
       // navigation, not plugin pages
       if (s === "search" || s === "tags" || s === "browse") return null;
     } catch { return null; }
   } else if (!composer) {
     s = s.replace(/\\/g, "/");
-    // a path that ENDS at a WordPress directory is the find/tree root
-    // line, not a plugin ("wp-content" and "var" are not plugins)
-    if (/(?:^|\/)(?:wp-content|plugins|mu-plugins|themes|uploads)\/?$/i.test(s) && s.includes("/")) return null;
     const pluginPath = /(?:^|[\s/])(?:wp-content\/)?plugins\/([^/\s]+)/i.exec(s);
+    // a capture wins: ".../plugins/uploads" is a plugin SLUGGED uploads.
+    // Only a path that ENDS at a WordPress directory is the find/tree
+    // root line ("wp-content" and "var" are not plugins).
     if (pluginPath) s = pluginPath[1];
-    // the first-segment read exists for the relative folder/file pair
-    // ("akismet/akismet.php"); absolute or deeper paths are not plugins,
-    // and multi-entry lines are handled per token upstream
-    else if (!/\s/.test(s) && !s.startsWith("/") && s.split("/").filter(Boolean).length === 2 && s.includes("/")) {
-      s = s.split("/").filter(Boolean)[0] || "";
+    else if (/(?:^|\/)(?:wp-content|plugins|mu-plugins|themes|uploads)\/?$/i.test(s) && s.includes("/")) return null;
+    // the first-segment read exists for the relative folder/FILE pair
+    // ("akismet/akismet.php"): the second segment must look like a file.
+    // A bare "Owner/repo" pair is a GitHub source whose owner is not a
+    // plugin; without a #ref to prove the shape it stays ambiguous.
+    else if (!/\s/.test(s) && !s.startsWith("/") && s.includes("/")) {
+      const segs = s.split("/").filter(Boolean);
+      if (segs.length === 2 && /\.[a-z0-9]+$/i.test(segs[1])) s = segs[0];
+      else return null;
     }
   }
 
@@ -284,7 +309,15 @@ function jsonSlugs(input) {
       // (verify-checksums) are authoritative; file only helps when it is
       // the REST "dir/file" form; name is last because the REST API puts
       // the DISPLAY name there
-      if (item && typeof item === "object") return item.slug ?? item.plugin ?? item.plugin_name ?? item.file ?? item.textdomain ?? item.name ?? "";
+      if (item && typeof item === "object") {
+        const v = item.slug ?? item.plugin ?? item.plugin_name ?? item.file ?? item.textdomain ?? item.name ?? "";
+        // the plugin/file keys hold "dir/file"; the dir is the slug, and
+        // resolving here keeps a bare "Owner/repo" STRING ambiguous later
+        if (typeof v === "string" && v.includes("/") && (item.plugin != null || item.file != null) && item.slug == null) {
+          return v.split("/").filter(Boolean)[0] ?? "";
+        }
+        return v;
+      }
       return "";
     });
   } catch { return null; }
@@ -324,6 +357,7 @@ function isStructuralLine(line) {
   // version" from a borderless or tab-separated table)
   const words = s.toLowerCase().split(/[\s,]+/).filter(Boolean);
   if (words.length === 1 && HEADER_NAMES.has(words[0])) return true;
+  if (words.length === 1 && FILE_ALIASES.get(words[0]) === null) return true;
   // a lone underscore compound of column words is a db/table heading
   if (words.length === 1 && /_/.test(words[0]) && isColumnLabel(words[0])) return true;
   if (words.length >= 2 && words.every(w => isColumnLabel(w))) return true;
@@ -340,8 +374,13 @@ function isStructuralLine(line) {
   // Markdown code fences around a pasted debug report
   if (/^`+$/.test(s)) return true;
   // the root line of a find/tree listing: a path ENDING at a WordPress
-  // directory is framing, its entries carry the plugins
-  if (s.includes("/") && !/\s/.test(s) && /(?:^|\/)(?:wp-content|plugins|mu-plugins|themes|uploads)\/?$/i.test(s)) return true;
+  // directory is framing, its entries carry the plugins (a plugins/x
+  // capture means x IS the plugin, even if x is "uploads")
+  if (s.includes("/") && !/\s/.test(s) &&
+      /(?:^|\/)(?:wp-content|plugins|mu-plugins|themes|uploads)\/?$/i.test(s) &&
+      !/(?:^|[\s/])(?:wp-content\/)?plugins\/[^/\s]/i.test(s)) return true;
+  // lone dot paths from wp-env examples ({"plugins": [ "." ]})
+  if (/^\.{1,2}$/.test(s)) return true;
   if (/^[{}()[\]],?;?$/.test(s)) return true;
   // the shell of a var_export/print_r array dump
   if (/^array\s*\($/i.test(s)) return true;
@@ -388,6 +427,13 @@ export function parseSlugsDetailed(input) {
     }
     let items = [raw];
     let expanded = false; // items are fragments of the line, reported per item
+    // a one-line wp-env manifest member carries the plugin list itself:
+    // {"plugins": [ "WordPress/gutenberg#trunk", "akismet" ]}
+    const inlineArray = !json && /"plugins"\s*:\s*\[([^\]]*)/.exec(raw);
+    if (inlineArray) {
+      items = [...inlineArray[1].matchAll(/"([^"]+)"/g)].map(m => m[1]);
+      expanded = true;
+    }
     // CSV wins over the pipe split when a header is being tracked or the
     // line carries quoted fields: an audit sheet's quoted display name may
     // itself contain a pipe ("Yoast | SEO",wordpress-seo,active)
@@ -396,7 +442,9 @@ export function parseSlugsDetailed(input) {
     const metaKeyList = /^-?\s*[a-z_]+:(\s|$)/.test(raw.trim());
     const csvish = raw.includes(",") && !hasJsonMember(raw) && !metaKeyList &&
       (!raw.includes("|") || csvSlugColumn !== null || raw.includes('"'));
-    if (!json && !csvish && raw.includes("|") && !hasJsonMember(raw) && !/^[+|:\-\s]+$/.test(raw.trim())) {
+    if (inlineArray) {
+      // items were expanded above
+    } else if (!json && !csvish && raw.includes("|") && !hasJsonMember(raw) && !/^[+|:\-\s]+$/.test(raw.trim())) {
       // pipe-table row (wp-cli table, Markdown): track the header's plugin
       // column so status-first layouts (--fields=status,name) read the right
       // cell; without a header, take the one cell that looks like a slug

@@ -806,3 +806,38 @@ test("search-yaml display names never lowercase into slugs", () => {
   // list-yaml identity values that ARE slugs keep parsing
   assert.deepEqual(parseSlugs("---\n- name: akismet\n  status: active"), ["akismet"]);
 });
+
+
+/* ---------- regressions from the ninth adversarial round (v1.3.9) ---------- */
+
+test("wp-env manifests resolve GitHub sources, zip URLs, and inline arrays", () => {
+  // "WordPress/gutenberg#trunk" names the REPO; "wordpress" is not a plugin
+  const manifest = parseSlugsDetailed('{\n  "core": "WordPress/WordPress#master",\n  "plugins": [\n    "WordPress/gutenberg#trunk",\n    "../path/to/my-plugin",\n    "https://downloads.wordpress.org/plugin/akismet.zip"\n  ]\n}');
+  assert.deepEqual(manifest.slugs, ["gutenberg", "akismet"]);
+  // the README writes arrays on one line too
+  assert.deepEqual(
+    parseSlugs('{"plugins": [ "WordPress/gutenberg#trunk", "https://downloads.wordpress.org/plugin/akismet.5.3.zip" ]}'),
+    ["gutenberg", "akismet"]
+  );
+  // a bare Owner/repo without a #ref stays ambiguous, with feedback
+  const bare = parseSlugsDetailed("WordPress/gutenberg");
+  assert.deepEqual(bare.slugs, []);
+  assert.deepEqual(bare.skipped, ["WordPress/gutenberg"]);
+});
+
+test("cron and site-list CSV headers are furniture, their rows report", () => {
+  const cron = parseSlugsDetailed('hook,next_run_gmt,next_run_relative,recurrence\nwp_version_check,"2026-05-31 22:15:13","11 hours","12 hours"');
+  assert.deepEqual(cron.slugs, []);
+  assert.equal(cron.skipped.length, 1);
+  assert.deepEqual(parseSlugsDetailed('blog_id,url,last_updated,registered\n1,https://example.com/,"2026-01-01","2020-01-01"').slugs, []);
+});
+
+test("path listings keep stub files and plugins slugged like directories", () => {
+  // an ls -d grid mixing real dirs with the stock hello.php/index.php
+  const grid = parseSlugsDetailed("wp-content/plugins/akismet\t\twp-content/plugins/hello.php\t\twp-content/plugins/jetpack");
+  assert.deepEqual(grid.slugs, ["akismet", "hello-dolly", "jetpack"]);
+  assert.deepEqual(grid.skipped, []);
+  // a plugin genuinely slugged "uploads" is a capture, not a root line
+  assert.equal(slugFromLine("wp-content/plugins/uploads"), "uploads");
+  assert.deepEqual(parseSlugs("wp-content/plugins\nwp-content/plugins/uploads"), ["uploads"]);
+});
