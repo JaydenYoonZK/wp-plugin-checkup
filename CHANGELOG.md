@@ -3,6 +3,17 @@
 All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.3.14] - 2026-07-17
+
+A fourteenth adversarial round built a real wp-content with a real Akismet and ran the real commands.
+
+### Fixed
+
+- The core directory vocabulary is complete: languages/ and upgrade/ (and 6.3's upgrade-temp-backup/) exist on real installs and no longer mint "Not in the directory" rows from tree or find listings; core directory tree nodes are structure whether they have children or not, while entries inside the plugins subtree always count as plugins.
+- ls -R output parses by section: entries at the plugins root are plugins, deeper sections list a plugin's own files, so Akismet's view files stop rendering closure alarms for the real closed plugins "stats", "logo", and "notice".
+- The folder/file pair rule never reads a core directory as a plugin: wp-content/index.php stopped minting "wp-content" from find output, and every core directory's index.php stub stays out of the skip note.
+- tree -F suffixed entries parse, and a full-depth tree that descends into each plugin treats the internals as the plugin's own files.
+
 ## [1.3.13] - 2026-07-17
 
 A thirteenth adversarial round replayed all forty-three canonical pastes (clean) and finished the tree and terminal-copy family.
@@ -642,6 +653,7 @@ First stable release.
 - Dependency-free ES module engine (docs/checkup.js) with 13 Node tests.
 - Browser UI in the shared suite design with light and dark themes and a ?demo deep link.
 
+[1.3.14]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.14
 [1.3.13]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.13
 [1.3.12]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.12
 [1.3.11]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.11

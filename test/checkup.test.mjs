@@ -946,3 +946,33 @@ test("tree output parses in both charsets, at any depth, for any root", () => {
   // a find listing keeps its index.php stub out of the skip note
   assert.deepEqual(parseSlugsDetailed("wp-content/plugins\nwp-content/plugins/akismet\nwp-content/plugins/index.php").skipped, []);
 });
+
+
+/* ------- regressions from the fourteenth adversarial round (v1.3.14) ------- */
+
+test("real wp-content listings: core dirs are structure in every tool", () => {
+  // languages/ and upgrade/ exist on real installs; neither is a plugin
+  const tree = parseSlugsDetailed("wp-content\n├── index.php\n├── languages\n│   └── ru_RU.mo\n├── plugins\n│   ├── akismet\n│   └── index.php\n├── themes\n│   └── twentytwentyfive\n├── upgrade\n└── uploads\n    └── 2026\n\n9 directories, 3 files");
+  assert.deepEqual(tree.slugs, ["akismet"]);
+  assert.deepEqual(tree.skipped, []);
+  // find wp-content: the folder/FILE pair rule never mints a core dir
+  const found = parseSlugsDetailed("wp-content\nwp-content/index.php\nwp-content/plugins\nwp-content/plugins/akismet");
+  assert.deepEqual(found.slugs, ["akismet"]);
+  assert.deepEqual(found.skipped, []);
+});
+
+test("ls -R sections: plugins-root entries parse, plugin internals stay silent", () => {
+  // stats/logo/notice are CLOSED real plugins; Akismet's view files must
+  // never render them as closure alarms
+  const lsr = parseSlugsDetailed("plugins:\nakismet\ncontact-form-7\nhello.php\nindex.php\n\nplugins/akismet:\nakismet.php\nviews\n\nplugins/akismet/views:\nconfig.php\nlogo.php\nnotice.php\nstats.php");
+  assert.deepEqual(lsr.slugs, ["akismet", "contact-form-7", "hello-dolly"]);
+  assert.deepEqual(lsr.skipped, []);
+});
+
+test("tree variants: -F suffixes and full-depth descents parse plugins only", () => {
+  assert.deepEqual(parseSlugs("plugins\n├── akismet/\n├── contact-form-7/\n└── hello.php"), ["akismet", "contact-form-7", "hello-dolly"]);
+  // a full-depth tree descends INTO each plugin; internals are not plugins
+  assert.deepEqual(parseSlugs("plugins\n├── akismet\n│   ├── akismet.php\n│   └── views\n└── wordpress-seo"), ["akismet", "wordpress-seo"]);
+  // inside the plugins subtree, an entry named like a core dir IS a plugin
+  assert.deepEqual(parseSlugs("plugins\n├── akismet\n├── uploads\n└── wordpress-seo"), ["akismet", "uploads", "wordpress-seo"]);
+});

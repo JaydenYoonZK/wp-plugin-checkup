@@ -138,7 +138,7 @@ function parseTreeLine(s) {
   return null;
 }
 const TREE_TRAILER_RE = /^\d+\s+director(?:y|ies),?\s*\d+\s+files?$/i;
-const WP_DIR_WORD_RE = /^(?:wp-content|plugins|mu-plugins|themes|uploads)$/i;
+const WP_DIR_WORD_RE = /^(?:wp-content|plugins|mu-plugins|themes|uploads|languages|upgrade|upgrade-temp-backup)$/i;
 
 /** A line of space-separated slugs (ls output of wp-content/plugins, a
  *  hand-typed one-liner). Three discriminators keep prose and table headers
@@ -262,14 +262,16 @@ export function slugFromLine(line) {
     // Only a path that ENDS at a WordPress directory is the find/tree
     // root line ("wp-content" and "var" are not plugins).
     if (pluginPath) s = pluginPath[1];
-    else if (/(?:^|\/)(?:wp-content|plugins|mu-plugins|themes|uploads)\/?$/i.test(s) && s.includes("/")) return null;
+    else if (/(?:^|\/)(?:wp-content|plugins|mu-plugins|themes|uploads|languages|upgrade|upgrade-temp-backup)\/?$/i.test(s) && s.includes("/")) return null;
     // the first-segment read exists for the relative folder/FILE pair
     // ("akismet/akismet.php"): the second segment must look like a file.
     // A bare "Owner/repo" pair is a GitHub source whose owner is not a
     // plugin; without a #ref to prove the shape it stays ambiguous.
     else if (!/\s/.test(s) && !s.startsWith("/") && s.includes("/")) {
       const segs = s.split("/").filter(Boolean);
-      if (segs.length === 2 && /\.[a-z0-9]+$/i.test(segs[1])) s = segs[0];
+      // "akismet/" (ls -F, tree -F) is the directory itself
+      if (segs.length === 1) s = segs[0];
+      else if (segs.length === 2 && /\.[a-z0-9]+$/i.test(segs[1]) && !WP_DIR_WORD_RE.test(segs[0])) s = segs[0];
       else return null;
     }
   }
@@ -415,13 +417,13 @@ function isStructuralLine(line) {
   if (/^`+$/.test(s)) return true;
   // tree(1) summary trailer, whole or comma-split
   if (/^\d+\s+(?:director(?:y|ies)|files?)(?:,\s*\d+\s+files?)?,?$/i.test(s)) return true;
-  // the silence-is-golden stub inside a plugins path listing
-  if (/(?:^|[\s/])(?:wp-content\/)?plugins\/index\.php\/?$/i.test(s)) return true;
+  // the silence-is-golden stubs inside a core directory listing
+  if (/(?:^|[\s/])(?:wp-content|plugins|mu-plugins|themes|uploads|languages|upgrade)\/index\.php\/?$/i.test(s)) return true;
   // the root line of a find/tree listing: a path ENDING at a WordPress
   // directory is framing, its entries carry the plugins (a plugins/x
   // capture means x IS the plugin, even if x is "uploads")
   if (s.includes("/") && !/\s/.test(s) &&
-      /(?:^|\/)(?:wp-content|plugins|mu-plugins|themes|uploads)\/?$/i.test(s) &&
+      /(?:^|\/)(?:wp-content|plugins|mu-plugins|themes|uploads|languages|upgrade|upgrade-temp-backup)\/?$/i.test(s) &&
       !/(?:^|[\s/])(?:wp-content\/)?plugins\/[^/\s]/i.test(s)) return true;
   // lone dot paths from wp-env examples ({"plugins": [ "." ]})
   if (/^\.{1,2}$/.test(s)) return true;
@@ -454,7 +456,9 @@ export function parseSlugsDetailed(input) {
   let pipeCellCount = 0;
   let pipeAssoc = false;
   let pipeNoIdentity = false;
-  let treeSkipPrefix = null; // depth of a themes/uploads subtree being skipped
+  let treeSkipPrefix = null; // depth of a non-plugin subtree being skipped
+  let treePluginsPrefix = null; // depth of the plugins node whose children are plugins
+  let lsSectionSkip = false; // inside an ls -R section listing plugin internals
   // a slug candidate that stands alone in a cell: not row furniture, not a
   // bare number, not a column label
   const soloSlug = (cell) => {
@@ -468,7 +472,7 @@ export function parseSlugsDetailed(input) {
     if (!json && !raw.trim()) {
       csvSlugColumn = null; csvFieldCount = 0; csvAssoc = false; csvNoIdentity = false;
       pipeSlugColumn = null; pipeCellCount = 0; pipeAssoc = false; pipeNoIdentity = false;
-      treeSkipPrefix = null;
+      treeSkipPrefix = null; treePluginsPrefix = null; lsSectionSkip = false;
       continue;
     }
     // tree(1) and find(1) print their operand verbatim first; a bare
@@ -480,11 +484,21 @@ export function parseSlugsDetailed(input) {
       const afterBlank = String(lines[li + 2] ?? "").trim();
       if (parseTreeLine(next) || next.toLowerCase().startsWith(raw.trim().toLowerCase() + "/") ||
           (!next && TREE_TRAILER_RE.test(afterBlank))) {
+        if (/^(?:mu-)?plugins$/i.test(raw.trim())) treePluginsPrefix = -1;
         continue;
       }
     }
     let items = [raw];
     let expanded = false; // items are fragments of the line, reported per item
+    // an ls -R section header ("plugins/akismet/views:"): sections at the
+    // plugins root list plugins, deeper sections list a plugin's own files
+    const lsHeader = !json ? /^([^\s:]+):$/.exec(raw.trim()) : null;
+    if (lsHeader && (lsHeader[1].includes("/") || lsHeader[1] === "." || WP_DIR_WORD_RE.test(lsHeader[1]))) {
+      const path = lsHeader[1].replace(/\/+$/, "");
+      lsSectionSkip = !(path === "." || /(?:^|\/)(?:wp-content\/)?(?:mu-)?plugins$/i.test(path));
+      continue;
+    }
+    if (lsSectionSkip && raw.trim()) continue;
     // tree(1) branch lines, either charset: directory nodes are structure,
     // and the children of a themes/uploads subtree are not plugins
     const tl = !json ? parseTreeLine(raw) : null;
@@ -494,14 +508,21 @@ export function parseSlugsDetailed(input) {
         items = [];
       } else {
         treeSkipPrefix = null;
+        if (treePluginsPrefix !== null && treePluginsPrefix >= 0 && tl.prefix <= treePluginsPrefix) treePluginsPrefix = null;
         const word = tl.content.trim().toLowerCase().replace(/\/+$/, "");
         const nextTree = parseTreeLine(String(lines[li + 1] ?? ""));
-        if (WP_DIR_WORD_RE.test(word) && nextTree && nextTree.prefix > tl.prefix) {
-          // a directory node heading its own subtree
-          if (word !== "plugins" && word !== "mu-plugins") treeSkipPrefix = tl.prefix;
+        const inPlugins = treePluginsPrefix !== null && tl.prefix > treePluginsPrefix;
+        if (!inPlugins && WP_DIR_WORD_RE.test(word)) {
+          // a core directory node is structure, leaf or subtree alike; the
+          // plugins node opens the subtree whose entries ARE plugins
+          if (/^(?:mu-)?plugins$/.test(word)) treePluginsPrefix = tl.prefix;
+          else if (nextTree && nextTree.prefix > tl.prefix) treeSkipPrefix = tl.prefix;
           items = [];
         } else {
           items = [tl.content];
+          // a full-depth tree descends INTO each plugin; the children are
+          // the plugin's own files and folders, not more plugins
+          if (nextTree && nextTree.prefix > tl.prefix) treeSkipPrefix = tl.prefix;
         }
       }
     } else if (!json && raw.trim()) {
