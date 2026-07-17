@@ -26,8 +26,9 @@ const COLUMN_NAMES = new Set([
   ...HEADER_NAMES, "update", "version", "update_version", "auto_update",
   "description", "wporg_status", "wporg_last_updated", "recently_active", "file",
   // wp plugin get prints an assoc Field/Value table; verify-checksums
-  // reports plugin_name/file/message columns; author appears in both
-  "field", "value", "author", "message"
+  // reports plugin_name/file/message columns; author appears in both;
+  // option/autoload cover wp db query output against wp_options
+  "field", "value", "author", "message", "option", "autoload", "id"
 ]);
 // The metadata keys a wp plugin get assoc table can print. A 2-cell row
 // whose key is none of these ends the assoc block: it belongs to whatever
@@ -51,6 +52,14 @@ function isHeaderCells(lower) {
   if (lower.length < 2) return false;
   const labels = lower.filter(isColumnLabel).length;
   return labels === lower.length || (lower.length >= 3 && labels >= 2);
+}
+// A cell that names the plugin column: an identity key itself, or a column
+// label built around one ("plugin_name", "Plugin Slug"). The header
+// re-detect gate must accept every label the tracker can follow.
+function isIdentityLabel(cell) {
+  if (["slug", "plugin", "name", "title"].includes(cell)) return true;
+  return isColumnLabel(cell) && /[\s_]/.test(cell) &&
+    cell.split(/[\s_]+/).some(k => ["slug", "plugin", "name", "title"].includes(k));
 }
 // The plugin column, by key priority (exact word first, then a compound
 // containing the key), so an exact "Plugin" beats an earlier "... Name".
@@ -117,7 +126,7 @@ export function slugListTokens(line) {
   });
   // re-check the cleaned tokens: stripping "w/" must not resurrect a filler
   if (cleaned.some(t => STOP_WORDS.has(t))) return null;
-  if (cleaned.every(t => COLUMN_NAMES.has(t))) return null;
+  if (cleaned.every(t => isColumnLabel(t))) return null;
   if (!cleaned.every(t => SLUG_RE.test(t) && !/^\d+$/.test(t))) return null;
   return cleaned;
 }
@@ -135,8 +144,12 @@ export function slugFromLine(line) {
   // email-quote prefixes and checklist markers
   s = stripLineDecorations(s);
 
+  // a PHP array entry from wp option get active_plugins:  0 => 'akismet/akismet.php',
+  const arrayEntry = /^\d+\s*=>\s*["']([^"']+)["'],?$/.exec(s);
+  if (arrayEntry) s = arrayEntry[1];
+
   // WP-CLI YAML list item: "- name: akismet" (also bare "slug: x" / "plugin: x")
-  const yaml = /^-?\s*(?:name|slug|plugin):\s*(.+)$/.exec(s);
+  const yaml = /^-?\s*(?:plugin_name|name|slug|plugin):\s*(.+)$/.exec(s);
   if (yaml) s = yaml[1].trim().replace(/^["']|["']$/g, "");
 
   // Composer / wpackagist: wpackagist-plugin/akismet (with or without the
@@ -147,7 +160,7 @@ export function slugFromLine(line) {
   // A JSON member carrying plugin identity, e.g. a line of truncated or
   // malformed wp-cli/REST JSON: {"name":"akismet", ... A "name" holding a
   // vendor/project pair is composer.json's project name, not a plugin.
-  const jsonMember = !composer && /"(name|slug|plugin)"\s*:\s*"([^"]+)"/.exec(s);
+  const jsonMember = !composer && /"(plugin_name|name|slug|plugin)"\s*:\s*"([^"]+)"/.exec(s);
   if (jsonMember && !(jsonMember[1] === "name" && jsonMember[2].includes("/"))) {
     s = jsonMember[2];
   }
@@ -208,9 +221,13 @@ export function slugFromLine(line) {
   if (!SLUG_RE.test(s)) return null;
   // a bare number is a count or version, never a plugin
   if (/^\d+$/.test(s)) return null;
-  // skip the WP-CLI header row's column name and lone listing furniture
+  // skip the WP-CLI header row's column name and lone listing furniture;
+  // an underscore compound of column words (option_value, update_version)
+  // is a database or table heading, never a plugin (single WORDS like
+  // "update" stay parseable: those are real directory slugs)
   if (HEADER_NAMES.has(s)) return null;
   if (UI_FRAMING_WORDS.has(s)) return null;
+  if (/_/.test(s) && isColumnLabel(s)) return null;
   return s;
 }
 
@@ -240,9 +257,11 @@ function jsonSlugs(input) {
     if (!Array.isArray(data)) return null;
     return data.map((item) => {
       if (typeof item === "string") return item;
-      // slug and plugin (the REST API's "dir/file" key) are authoritative;
-      // name is last because the REST API puts the DISPLAY name there
-      if (item && typeof item === "object") return item.slug ?? item.plugin ?? item.file ?? item.textdomain ?? item.name ?? "";
+      // slug/plugin (the REST API's "dir/file" key) and plugin_name
+      // (verify-checksums) are authoritative; file only helps when it is
+      // the REST "dir/file" form; name is last because the REST API puts
+      // the DISPLAY name there
+      if (item && typeof item === "object") return item.slug ?? item.plugin ?? item.plugin_name ?? item.file ?? item.textdomain ?? item.name ?? "";
       return "";
     });
   } catch { return null; }
@@ -272,7 +291,7 @@ function isStructuralLine(line) {
   const s = stripLineDecorations(line.trim()).trim();
   if (!s || s.startsWith("#") || s.startsWith("//")) return true;
   if (/^[+|:\-\s]+$/.test(s)) return true;
-  if (/^-?\s*[a-z_]+:(\s|$)/.test(s) && !/^-?\s*(?:name|slug|plugin):/.test(s)) return true;
+  if (/^-?\s*[a-z_]+:(\s|$)/.test(s) && !/^-?\s*(?:plugin_name|name|slug|plugin):/.test(s)) return true;
   if (s.startsWith("|")) {
     const first = (s.split("|").map(c => c.trim()).find(c => c) || "").toLowerCase();
     if (HEADER_NAMES.has(first)) return true;
@@ -282,7 +301,9 @@ function isStructuralLine(line) {
   // version" from a borderless or tab-separated table)
   const words = s.toLowerCase().split(/[\s,]+/).filter(Boolean);
   if (words.length === 1 && HEADER_NAMES.has(words[0])) return true;
-  if (words.length >= 2 && words.every(w => COLUMN_NAMES.has(w))) return true;
+  // a lone underscore compound of column words is a db/table heading
+  if (words.length === 1 && /_/.test(words[0]) && isColumnLabel(words[0])) return true;
+  if (words.length >= 2 && words.every(w => isColumnLabel(w))) return true;
   // wp-admin Plugins-page furniture: lone action/status words ("Deactivate",
   // "Active"), "Version 5.7.2 ..." meta lines, and the "By Author" /
   // "View details" / "Visit plugin site" phrases
@@ -295,7 +316,9 @@ function isStructuralLine(line) {
   if (/^(?:by|view|visit)\s+\S/i.test(s)) return true;
   // Markdown code fences around a pasted debug report
   if (/^`+$/.test(s)) return true;
-  if (/^[{}[\]],?$/.test(s)) return true;
+  if (/^[{}()[\]],?;?$/.test(s)) return true;
+  // the shell of a var_export/print_r array dump
+  if (/^array\s*\($/i.test(s)) return true;
   if (isJsonMemberLine(s) && !/wpackagist-(?:mu)?plugin\//i.test(s)) return true;
   return false;
 }
@@ -325,7 +348,7 @@ export function parseSlugsDetailed(input) {
   const soloSlug = (cell) => {
     const w = cell.toLowerCase().replace(/\.php$/i, "");
     return SLUG_RE.test(w) && !/^\d+$/.test(w) &&
-      !UI_FRAMING_WORDS.has(w) && !COLUMN_NAMES.has(w) && !VERSION_TOKEN_RE.test(cell);
+      !UI_FRAMING_WORDS.has(w) && !isColumnLabel(w) && !VERSION_TOKEN_RE.test(cell);
   };
   for (const line of lines) {
     const raw = String(line);
@@ -343,7 +366,7 @@ export function parseSlugsDetailed(input) {
     // a non-identity "key: a, b, c" line is a metadata list (Site Health's
     // theme_features/gd_formats lines), never CSV to split into slugs
     const metaKeyList = /^-?\s*[a-z_]+:(\s|$)/.test(raw.trim()) &&
-      !/^-?\s*(?:name|slug|plugin):/.test(raw.trim());
+      !/^-?\s*(?:plugin_name|name|slug|plugin):/.test(raw.trim());
     const csvish = raw.includes(",") && !hasJsonMember(raw) && !metaKeyList &&
       (!raw.includes("|") || csvSlugColumn !== null || raw.includes('"'));
     if (!json && !csvish && raw.includes("|") && !hasJsonMember(raw) && !/^[+|:\-\s]+$/.test(raw.trim())) {
@@ -373,7 +396,7 @@ export function parseSlugsDetailed(input) {
       // header is a data row about the real plugin "update")
       const rowIsHeader = isHeaderCells(lower) &&
         (pipeSlugColumn === null || cells.length !== pipeCellCount ||
-          ["slug", "plugin", "name", "title"].includes(lower[pipeSlugColumn] ?? ""));
+          isIdentityLabel(lower[pipeSlugColumn] ?? ""));
       if (rowIsHeader) {
         // a Field/Value header opens an assoc table (wp plugin get): the
         // plugin identity lives in its "name" ROW, not in a column
@@ -434,7 +457,7 @@ export function parseSlugsDetailed(input) {
         // under a name,title header is data about the real plugin "update")
         const rowIsHeader = !(csvAssoc && fields.length === 2 && !fieldValuePair) && isHeaderCells(lower) &&
           (csvSlugColumn === null || fields.length !== csvFieldCount ||
-            ["slug", "plugin", "name", "title"].includes(lower[csvSlugColumn] ?? ""));
+            isIdentityLabel(lower[csvSlugColumn] ?? ""));
         if (rowIsHeader) {
           csvAssoc = fieldValuePair;
           const idx = csvAssoc ? -1 : slugColumnIndex(lower);

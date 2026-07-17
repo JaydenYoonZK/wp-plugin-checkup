@@ -708,3 +708,47 @@ test("wp plugin get parses plugins whose slug is itself a column word", () => {
     ["akismet", "jetpack"]
   );
 });
+
+
+test("wp option get active_plugins parses its var_export array", () => {
+  const dump = "array (\n  0 => 'akismet/akismet.php',\n  1 => 'jetpack/jetpack.php',\n  2 => 'contact-form-7/wp-contact-form-7.php',\n)";
+  const parsed = parseSlugsDetailed(dump);
+  assert.deepEqual(parsed.slugs, ["akismet", "jetpack", "contact-form-7"]);
+  assert.deepEqual(parsed.skipped, []);
+});
+
+
+/* --------- regressions from the seventh adversarial round (v1.3.7) --------- */
+
+test("wp db query output against wp_options never mints column phantoms", () => {
+  // mysql batch headers: option_value alone, or the SELECT * TSV header
+  const single = parseSlugsDetailed('option_value\na:2:{i:0;s:19:"akismet/akismet.php";i:1;s:19:"jetpack/jetpack.php";}');
+  assert.deepEqual(single.slugs, []);
+  assert.equal(single.skipped.length, 1); // the serialized row is reported
+  assert.deepEqual(parseSlugsDetailed("option_id\toption_name\toption_value\tautoload\n1\tactive_plugins\ta:1:{}\tyes").slugs, []);
+  // mysql -t single-cell header row
+  assert.deepEqual(parseSlugsDetailed("+--------------+\n| option_value |\n+--------------+").slugs, []);
+});
+
+test("verify-checksums json and yaml read plugin_name, not file paths", () => {
+  const json = JSON.stringify([
+    { plugin_name: "akismet", file: "readme.txt", message: "Checksum does not match" },
+    { plugin_name: "wordfence", file: "lib/wordfenceClass.php", message: "Checksum does not match" },
+    { plugin_name: "wordfence", file: "views/diff.php", message: "File was added" }
+  ]);
+  const fromJson = parseSlugsDetailed(json);
+  assert.deepEqual(fromJson.slugs, ["akismet", "wordfence"]);
+  assert.deepEqual(fromJson.skipped, []);
+  const yaml = "---\n- \n  plugin_name: akismet\n  file: readme.txt\n  message: Checksum does not match\n- \n  plugin_name: wordfence\n  file: lib/wordfenceClass.php\n  message: Checksum does not match";
+  const fromYaml = parseSlugsDetailed(yaml);
+  assert.deepEqual(fromYaml.slugs, ["akismet", "wordfence"]);
+  assert.deepEqual(fromYaml.skipped, []);
+});
+
+test("repeated compound-label headers re-detect instead of parsing as data", () => {
+  // two verify-checksums csv runs concatenated: the second plugin_name
+  // header must not become a verdict row
+  const twice = parseSlugsDetailed("plugin_name,file,message\nakismet,akismet.php,Checksum does not match\nplugin_name,file,message\nwordfence,lib/x.php,Checksum does not match");
+  assert.deepEqual(twice.slugs, ["akismet", "wordfence"]);
+  assert.deepEqual(twice.skipped, []);
+});

@@ -3,6 +3,20 @@
 All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.3.7] - 2026-07-17
+
+A seventh adversarial round went after the database-facing screens and the checksum formats.
+
+### Fixed
+
+- wp db query output against wp_options no longer mints phantoms: the mysql batch headers (option_value alone, or the SELECT * option_id/option_name/option_value/autoload line, or the bordered -t variant) are recognized as database headings, not plugins. Underscore compounds of column words never parse as slugs; real underscore plugins like serve_static are untouched.
+- wp plugin verify-checksums --format=json reads plugin_name instead of falling back to the file column, whose paths are relative to the plugin and were leaking their first segment ("lib", "views", "js") as phantom rows while the real plugins got none. The yaml format's plugin_name identity lines now parse too, instead of being swallowed as metadata.
+- A repeated compound-label header (two verify-checksums runs pasted from one scrollback) re-detects as a header instead of parsing as a data row about a "plugin" named plugin_name.
+
+### Added
+
+- wp option get active_plugins output parses its var_export array: each quoted plugin path resolves to its slug, and the array shell stays silent.
+
 ## [1.3.6] - 2026-07-17
 
 A sixth adversarial round reconstructed the Site Health debug copy from WordPress core source and probed the assoc-table fix, and both attacks landed.
@@ -568,6 +582,7 @@ First stable release.
 - Dependency-free ES module engine (docs/checkup.js) with 13 Node tests.
 - Browser UI in the shared suite design with light and dark themes and a ?demo deep link.
 
+[1.3.7]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.7
 [1.3.6]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.6
 [1.3.5]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.5
 [1.3.4]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.4
