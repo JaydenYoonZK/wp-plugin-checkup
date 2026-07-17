@@ -3,6 +3,17 @@
 All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.3.5] - 2026-07-17
+
+A fifth adversarial round reconstructed real WP-CLI screens verbatim and caught the parser misreading two of them.
+
+### Fixed
+
+- wp plugin get output now recovers its plugin. The command prints an assoc Field/Value table (and CSV) whose identity lives in the name ROW; the parser consumed that row as a table header (silently dropping the one plugin the user asked about) and read the metadata keys as slugs, minting "author", "version", and "description" verdict rows. Field/Value headers now open an assoc mode: the name, slug, and plugin keys carry identity, the rest is metadata.
+- Data rows that merely start with a column word ("name,akismet") are no longer consumed as headers; a header row must be made of column labels (all of them, or at least two among three or more cells).
+- wp plugin verify-checksums --format=csv reads its plugin_name column. The underscore compound now counts as a column label, so the header is recognized, the right column is picked, and the file column's paths ("lib/", "views/") stop leaking out as phantom slugs.
+- Conjunction slash pairs stopped minting fillers: "akismet and/or jetpack" produced a top-sorted "Not in the directory" row for "and" because the grep-pair read extracted its left side. The pair read now requires a file on the right ("akismet/akismet.php"), and cleaned tokens are re-checked against the stop-word list, so "and/or", "either/or", "n/a", and "w/" all report as prose instead.
+
 ## [1.3.4] - 2026-07-17
 
 A fourth adversarial round went after the seams between the parser's format branches and the pastes of working sysadmins. Two of its finds mattered a lot.
@@ -547,6 +558,7 @@ First stable release.
 - Dependency-free ES module engine (docs/checkup.js) with 13 Node tests.
 - Browser UI in the shared suite design with light and dark themes and a ?demo deep link.
 
+[1.3.5]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.5
 [1.3.4]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.4
 [1.3.3]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.3
 [1.3.2]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.2

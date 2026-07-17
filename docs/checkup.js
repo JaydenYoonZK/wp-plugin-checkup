@@ -24,8 +24,40 @@ const WPCLI_STATUSES = new Set(["active", "active-network", "inactive", "must-us
 // slugs, so a header read as slugs would put phantom verdicts on top.
 const COLUMN_NAMES = new Set([
   ...HEADER_NAMES, "update", "version", "update_version", "auto_update",
-  "description", "wporg_status", "wporg_last_updated", "recently_active", "file"
+  "description", "wporg_status", "wporg_last_updated", "recently_active", "file",
+  // wp plugin get prints an assoc Field/Value table; verify-checksums
+  // reports plugin_name/file/message columns; author appears in both
+  "field", "value", "author", "message"
 ]);
+// A column label: a column word, or a phrase/compound made only of column
+// words ("Plugin Name", "plugin_name"). "Site Name" is NOT one: "site" is
+// someone's data, and treating it as the plugin column minted phantoms once.
+function isColumnLabel(w) {
+  if (COLUMN_NAMES.has(w)) return true;
+  if (!/[\s_]/.test(w)) return false;
+  return w.split(/[\s_]+/).filter(Boolean).every(p => COLUMN_NAMES.has(p) || p === "by");
+}
+// A header row is made of column labels: all of them, or at least two among
+// three-plus cells (real headers tolerate one custom column; a data row
+// like "name,akismet" that merely STARTS with a column word does not).
+function isHeaderCells(lower) {
+  if (lower.length < 2) return false;
+  const labels = lower.filter(isColumnLabel).length;
+  return labels === lower.length || (lower.length >= 3 && labels >= 2);
+}
+// The plugin column, by key priority (exact word first, then a compound
+// containing the key), so an exact "Plugin" beats an earlier "... Name".
+function slugColumnIndex(lower) {
+  for (const k of ["slug", "plugin", "name", "title"]) {
+    const i = lower.indexOf(k);
+    if (i !== -1) return i;
+  }
+  for (const k of ["slug", "plugin", "name", "title"]) {
+    const i = lower.findIndex(f => isColumnLabel(f) && /[\s_]/.test(f) && f.split(/[\s_]+/).includes(k));
+    if (i !== -1) return i;
+  }
+  return -1;
+}
 // Directory slugs for files that live directly in wp-content/plugins/.
 // index.php is the silence-is-golden stub in every install, not a plugin.
 const FILE_ALIASES = new Map([["hello", "hello-dolly"], ["index", null]]);
@@ -41,7 +73,7 @@ const UI_FRAMING_WORDS = new Set([
 // Conjunctions and glue words: a "list" containing one is a sentence, and a
 // sentence is reported back, never guessed at ("and" would otherwise render
 // its own verdict row in "akismet and contact-form-7").
-const STOP_WORDS = new Set(["and", "or", "the", "with", "plus", "also", "then"]);
+const STOP_WORDS = new Set(["and", "or", "the", "with", "w", "plus", "also", "then"]);
 
 /* ----------------------------- parsing ----------------------------- */
 
@@ -69,12 +101,15 @@ export function slugListTokens(line) {
   if (tokens.some(t => STOP_WORDS.has(t))) return null;
   const cleaned = tokens.map(t => {
     // ls -F / ls -p decorate entries with a trailing slash, and grep-style
-    // output pairs the folder with its file: akismet/akismet.php
+    // output pairs the folder with a FILE (the dot is what separates
+    // "akismet/akismet.php" from the conjunction "and/or")
     let w = t.replace(/\/+$/, "");
-    const pair = /^([a-z0-9_-]+)\/[a-z0-9_.-]+$/.exec(w);
+    const pair = /^([a-z0-9_-]+)\/[a-z0-9_-]+\.[a-z0-9.]+$/.exec(w);
     if (pair) w = pair[1];
     return w.replace(/\.php$/i, "");
   });
+  // re-check the cleaned tokens: stripping "w/" must not resurrect a filler
+  if (cleaned.some(t => STOP_WORDS.has(t))) return null;
   if (cleaned.every(t => COLUMN_NAMES.has(t))) return null;
   if (!cleaned.every(t => SLUG_RE.test(t) && !/^\d+$/.test(t))) return null;
   return cleaned;
@@ -270,8 +305,10 @@ export function parseSlugsDetailed(input) {
   const lines = json ?? input.split(/\r\n?|\n/);
   let csvSlugColumn = null;
   let csvFieldCount = 0;
+  let csvAssoc = false;
   let pipeSlugColumn = null;
   let pipeCellCount = 0;
+  let pipeAssoc = false;
   // a slug candidate that stands alone in a cell: not row furniture, not a
   // bare number, not a column label
   const soloSlug = (cell) => {
@@ -283,8 +320,8 @@ export function parseSlugsDetailed(input) {
     const raw = String(line);
     // a blank line ends a table block; what follows is a fresh paste section
     if (!json && !raw.trim()) {
-      csvSlugColumn = null; csvFieldCount = 0;
-      pipeSlugColumn = null; pipeCellCount = 0;
+      csvSlugColumn = null; csvFieldCount = 0; csvAssoc = false;
+      pipeSlugColumn = null; pipeCellCount = 0; pipeAssoc = false;
       continue;
     }
     let items = [raw];
@@ -300,15 +337,23 @@ export function parseSlugsDetailed(input) {
       // cell; without a header, take the one cell that looks like a slug
       const cells = raw.split("|").map(c => c.trim()).filter(Boolean);
       const lower = cells.map(c => c.toLowerCase());
-      if (lower.some(c => HEADER_NAMES.has(c))) {
-        const key = ["slug", "plugin", "name", "title"].find(k => lower.includes(k));
-        pipeSlugColumn = key ? lower.indexOf(key) : 0;
+      if (isHeaderCells(lower)) {
+        // a Field/Value header opens an assoc table (wp plugin get): the
+        // plugin identity lives in its "name" ROW, not in a column
+        pipeAssoc = lower.length === 2 && lower[0] === "field" && lower[1] === "value";
+        const idx = pipeAssoc ? -1 : slugColumnIndex(lower);
+        pipeSlugColumn = idx !== -1 ? idx : null;
         pipeCellCount = cells.length;
         continue;
       }
       expanded = true;
       items = null;
-      if (pipeSlugColumn !== null && cells.length === pipeCellCount) {
+      if (pipeAssoc && cells.length === 2) {
+        // assoc row: the name/slug/plugin keys carry the identity, the
+        // author/version/description/status keys are metadata (no items,
+        // no skip note)
+        items = ["name", "slug", "plugin"].includes(lower[0]) ? [cells[1]] : [];
+      } else if (pipeSlugColumn !== null && cells.length === pipeCellCount) {
         const tracked = cells[pipeSlugColumn] ?? "";
         if (soloSlug(tracked)) items = [tracked];
         // a display name under the tracked column still deserves its report
@@ -342,33 +387,24 @@ export function parseSlugsDetailed(input) {
       const fields = csvFields(raw);
       if (fields) {
         const lower = fields.map(f => f.replace(/^"|"$/g, "").trim().toLowerCase());
-        // a header cell is a column word, or a multi-word column phrase made
-        // only of column words ("Plugin Name" from a hand-made audit sheet;
-        // "Site Name" or "Author Name" is a different column entirely)
-        const columnPhrase = (f) => /\s/.test(f) && f.split(/\s+/).every(w => COLUMN_NAMES.has(w) || w === "by");
-        const headerish = (f) => HEADER_NAMES.has(f) || columnPhrase(f);
-        if (lower.some(headerish)) {
-          // header row: pick the plugin column by key priority, exact
-          // matches before column phrases, so an exact "Slug"/"Plugin"
-          // column beats an earlier "... Name" phrase
-          let idx = -1;
-          for (const k of ["slug", "plugin", "name", "title"]) {
-            const i = lower.indexOf(k);
-            if (i !== -1) { idx = i; break; }
-          }
-          if (idx === -1) {
-            for (const k of ["slug", "plugin", "name", "title"]) {
-              const i = lower.findIndex(f => columnPhrase(f) && f.split(/\s+/).includes(k));
-              if (i !== -1) { idx = i; break; }
-            }
-          }
-          csvSlugColumn = idx !== -1 ? idx : 0;
+        // a header row is made of column labels ("Plugin Name" counts,
+        // "Site Name" is someone's data); pick the plugin column by key
+        // priority so an exact "Slug"/"Plugin" beats an earlier "... Name"
+        if (isHeaderCells(lower)) {
+          csvAssoc = lower.length === 2 && lower[0] === "field" && lower[1] === "value";
+          const idx = csvAssoc ? -1 : slugColumnIndex(lower);
+          csvSlugColumn = idx !== -1 ? idx : null;
           csvFieldCount = fields.length;
           continue;
         }
+        if (csvAssoc && fields.length === 2) {
+          // assoc row (wp plugin get --format=csv): identity keys only
+          items = ["name", "slug", "plugin"].includes(lower[0]) ? [fields[1]] : [];
+          expanded = true;
+        }
         // only rows that match the header's shape are its data rows; a line
         // with a different field count is a fresh list, not a table row
-        if (csvSlugColumn !== null && fields.length === csvFieldCount) {
+        else if (csvSlugColumn !== null && fields.length === csvFieldCount) {
           items = [fields[csvSlugColumn] ?? ""];
         } else if (WPCLI_STATUSES.has(lower[1])) {
           items = [fields[0]];

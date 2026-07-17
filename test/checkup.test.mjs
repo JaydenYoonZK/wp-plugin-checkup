@@ -589,3 +589,62 @@ test("forwarded and wrapped table framing stays out of the skip note", () => {
     ["akismet", "jetpack"]
   );
 });
+
+
+/* ---------- regressions from the fifth adversarial round (v1.3.5) ---------- */
+
+test("wp plugin get output recovers the plugin from its assoc table", () => {
+  // the Field/Value table of `wp plugin get akismet`: identity lives in the
+  // name ROW; author/version/description are metadata, never verdict rows
+  const table = [
+    "+-------------+------------------------+",
+    "| Field       | Value                  |",
+    "+-------------+------------------------+",
+    "| name        | akismet                |",
+    "| title       | Akismet Anti-spam: Spam Protection |",
+    "| author      | Automattic             |",
+    "| version     | 5.3.7                  |",
+    "| description | The best anti-spam.    |",
+    "| status      | active                 |",
+    "+-------------+------------------------+"
+  ].join("\n");
+  const fromTable = parseSlugsDetailed(table);
+  assert.deepEqual(fromTable.slugs, ["akismet"]);
+  assert.deepEqual(fromTable.skipped, []);
+  const csv = 'Field,Value\nname,akismet\ntitle,"Akismet Anti-spam"\nauthor,Automattic\nversion,5.3.7\nstatus,active';
+  const fromCsv = parseSlugsDetailed(csv);
+  assert.deepEqual(fromCsv.slugs, ["akismet"]);
+  assert.deepEqual(fromCsv.skipped, []);
+});
+
+test("verify-checksums CSV reads its plugin_name column, not paths or labels", () => {
+  const report = [
+    "plugin_name,file,message",
+    "akismet,akismet.php,Checksum does not match",
+    "wordfence,lib/wordfenceClass.php,Checksum does not match",
+    "wordfence,views/diff.php,File was added"
+  ].join("\n");
+  const parsed = parseSlugsDetailed(report);
+  assert.deepEqual(parsed.slugs, ["akismet", "wordfence"]);
+  assert.deepEqual(parsed.skipped, []);
+});
+
+test("data rows starting with a column word are data, not headers", () => {
+  // "name,akismet" must not be consumed as a header (the old rule swallowed
+  // the one plugin a wp plugin get csv was about)
+  assert.deepEqual(parseSlugs("name,akismet"), ["akismet"]);
+  // real headers still detect: all labels, or two labels among three cells
+  assert.deepEqual(parseSlugs("Site Name,Plugin,Status\nblog-one,akismet,active"), ["akismet"]);
+});
+
+test("conjunction slash pairs never mint fillers as slugs", () => {
+  // the grep-pair read requires a FILE on the right; "and/or" is a sentence
+  const conj = parseSlugsDetailed("akismet and/or jetpack");
+  assert.deepEqual(conj.slugs, []);
+  assert.deepEqual(conj.skipped, ["akismet and/or jetpack"]);
+  assert.deepEqual(parseSlugs("wordfence either/or sucuri-scanner"), []);
+  assert.deepEqual(parseSlugs("akismet  n/a"), []);
+  assert.deepEqual(parseSlugs("akismet w/ jetpack"), []);
+  // real grep pairs keep parsing
+  assert.deepEqual(parseSlugs("akismet/akismet.php contact-form-7/wp-contact-form-7.php"), ["akismet", "contact-form-7"]);
+});
