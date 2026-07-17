@@ -30,6 +30,18 @@ const COLUMN_NAMES = new Set([
 // index.php is the silence-is-golden stub in every install, not a plugin.
 const FILE_ALIASES = new Map([["hello", "hello-dolly"], ["index", null]]);
 const VERSION_TOKEN_RE = /^v?\d+(?:\.\d+)+$/;
+// Listing furniture that must never become a verdict row on its own: the
+// wp-admin row actions and status labels every Plugins-page copy contains,
+// and wp-cli's update-column values. None is a live directory slug (checked
+// against the API); anyone who really means one can paste its URL.
+const UI_FRAMING_WORDS = new Set([
+  ...WPCLI_STATUSES, "activate", "deactivate", "settings", "delete",
+  "none", "available", "unavailable", "on", "off"
+]);
+// Conjunctions and glue words: a "list" containing one is a sentence, and a
+// sentence is reported back, never guessed at ("and" would otherwise render
+// its own verdict row in "akismet and contact-form-7").
+const STOP_WORDS = new Set(["and", "or", "the", "with", "plus", "also", "then"]);
 
 /* ----------------------------- parsing ----------------------------- */
 
@@ -47,6 +59,7 @@ export function slugListTokens(line) {
   if (tokens.length < 2) return null;
   if (WPCLI_STATUSES.has(tokens[1]) || VERSION_TOKEN_RE.test(tokens[1])) return null;
   if (!tokens.some(t => /[-_.0-9]/.test(t))) return null;
+  if (tokens.some(t => STOP_WORDS.has(t))) return null;
   const cleaned = tokens.map(t => t.replace(/\.php$/i, ""));
   if (cleaned.every(t => COLUMN_NAMES.has(t))) return null;
   if (!cleaned.every(t => SLUG_RE.test(t) && !/^\d+$/.test(t))) return null;
@@ -110,8 +123,12 @@ export function slugFromLine(line) {
   // slug from its first word asserts a verdict about the wrong plugin.
   const tokens = s.split(/[\s|]+/).filter(Boolean);
   if (tokens.length > 1) {
+    const first = tokens[0].toLowerCase();
     const second = tokens[1].toLowerCase();
     const tabular = WPCLI_STATUSES.has(second) || VERSION_TOKEN_RE.test(second);
+    // "Version 5.7.2 | By Automattic" (a wp-admin Plugins-page line) is
+    // tabular-shaped, but its first cell is a label, not a plugin
+    if (tabular && (COLUMN_NAMES.has(first) || UI_FRAMING_WORDS.has(first))) return null;
     if (!tabular && !slugListTokens(s)) return null;
   }
   s = tokens[0] || "";
@@ -127,8 +144,11 @@ export function slugFromLine(line) {
     s = mapped;
   }
   if (!SLUG_RE.test(s)) return null;
-  // skip the WP-CLI header row's column name
+  // a bare number is a count or version, never a plugin
+  if (/^\d+$/.test(s)) return null;
+  // skip the WP-CLI header row's column name and lone listing furniture
   if (HEADER_NAMES.has(s)) return null;
+  if (UI_FRAMING_WORDS.has(s)) return null;
   return s;
 }
 
@@ -200,6 +220,12 @@ function isStructuralLine(line) {
   const words = s.toLowerCase().split(/[\s,]+/).filter(Boolean);
   if (words.length === 1 && HEADER_NAMES.has(words[0])) return true;
   if (words.length >= 2 && words.every(w => COLUMN_NAMES.has(w))) return true;
+  // wp-admin Plugins-page furniture: lone action/status words ("Deactivate",
+  // "Active"), "Version 5.7.2 ..." meta lines, and the "By Author" /
+  // "View details" / "Visit plugin site" phrases
+  if (words.length === 1 && UI_FRAMING_WORDS.has(words[0])) return true;
+  if (words.length >= 2 && COLUMN_NAMES.has(words[0]) && VERSION_TOKEN_RE.test(words[1])) return true;
+  if (/^(?:by|view|visit)\s+\S/i.test(s)) return true;
   if (/^[{}[\]],?$/.test(s)) return true;
   if (isJsonMemberLine(s) && !/wpackagist-(?:mu)?plugin\//i.test(s)) return true;
   return false;
@@ -215,46 +241,105 @@ export function parseSlugsDetailed(input) {
   const out = [];
   const skipped = [];
   const json = jsonSlugs(input);
-  const lines = json ?? input.split(/\r?\n/);
+  // \r alone is a line ending too: Excel's "CSV (Macintosh)" export still
+  // produces bare CR, and a CR-joined CSV read as one line leaks its status
+  // fields out as phantom slugs
+  const lines = json ?? input.split(/\r\n?|\n/);
   let csvSlugColumn = null;
   let csvFieldCount = 0;
+  let pipeSlugColumn = null;
+  let pipeCellCount = 0;
+  // a slug candidate that stands alone in a cell: not row furniture, not a
+  // bare number, not a column label
+  const soloSlug = (cell) => {
+    const w = cell.toLowerCase().replace(/\.php$/i, "");
+    return SLUG_RE.test(w) && !/^\d+$/.test(w) &&
+      !UI_FRAMING_WORDS.has(w) && !COLUMN_NAMES.has(w) && !VERSION_TOKEN_RE.test(cell);
+  };
   for (const line of lines) {
     const raw = String(line);
-    // a blank line ends a CSV block; what follows is a fresh paste section
-    if (!json && !raw.trim()) { csvSlugColumn = null; csvFieldCount = 0; continue; }
+    // a blank line ends a table block; what follows is a fresh paste section
+    if (!json && !raw.trim()) {
+      csvSlugColumn = null; csvFieldCount = 0;
+      pipeSlugColumn = null; pipeCellCount = 0;
+      continue;
+    }
     let items = [raw];
-    if (!json && !raw.includes("|") && raw.includes(",") && !hasJsonMember(raw)) {
+    let expanded = false; // items are fragments of the line, reported per item
+    if (!json && raw.includes("|") && !/^[+|\-\s]+$/.test(raw.trim())) {
+      // pipe-table row (wp-cli table, Markdown): track the header's plugin
+      // column so status-first layouts (--fields=status,name) read the right
+      // cell; without a header, take the one cell that looks like a slug
+      const cells = raw.split("|").map(c => c.trim()).filter(Boolean);
+      const lower = cells.map(c => c.toLowerCase());
+      if (lower.some(c => HEADER_NAMES.has(c))) {
+        const key = ["slug", "plugin", "name", "title"].find(k => lower.includes(k));
+        pipeSlugColumn = key ? lower.indexOf(key) : 0;
+        pipeCellCount = cells.length;
+        continue;
+      }
+      expanded = true;
+      if (pipeSlugColumn !== null && cells.length === pipeCellCount) {
+        items = [cells[pipeSlugColumn] ?? ""];
+      } else {
+        const cell = cells.find(soloSlug);
+        // no slug-shaped cell: surface the content cells (a display-name
+        // row deserves a skip report), drop the furniture ones silently
+        items = cell ? [cell] : cells.filter(c => !isStructuralLine(c));
+      }
+    } else if (!json && raw.includes(",") && !hasJsonMember(raw)) {
       const fields = csvFields(raw);
       if (fields) {
         const lower = fields.map(f => f.replace(/^"|"$/g, "").trim().toLowerCase());
-        if (lower.some(f => HEADER_NAMES.has(f))) {
+        // a header cell is a column word, or a multi-word column phrase
+        // like "Plugin Name" from a hand-made audit sheet
+        const headerish = (f) => HEADER_NAMES.has(f) ||
+          (/\s/.test(f) && f.split(/\s+/).every(w => COLUMN_NAMES.has(w) || w === "by"));
+        if (lower.some(headerish)) {
           // header row: remember which column names the plugin, consume the row
-          const key = ["slug", "plugin", "name", "title"].find(k => lower.includes(k));
-          csvSlugColumn = key ? lower.indexOf(key) : 0;
+          const idx = lower.findIndex(f =>
+            ["slug", "plugin", "name", "title"].some(k => f === k || (/\s/.test(f) && f.split(/\s+/).includes(k))));
+          csvSlugColumn = idx !== -1 ? idx : 0;
           csvFieldCount = fields.length;
           continue;
         }
         // only rows that match the header's shape are its data rows; a line
         // with a different field count is a fresh list, not a table row
-        if (csvSlugColumn !== null && fields.length === csvFieldCount) items = [fields[csvSlugColumn] ?? ""];
-        else if (WPCLI_STATUSES.has(lower[1])) items = [fields[0]];
-        else items = fields;
+        if (csvSlugColumn !== null && fields.length === csvFieldCount) {
+          items = [fields[csvSlugColumn] ?? ""];
+        } else if (WPCLI_STATUSES.has(lower[1])) {
+          items = [fields[0]];
+        } else {
+          // headerless list: statuses, update values, versions, and bare
+          // numbers riding along in other columns are furniture, not slugs
+          items = fields.filter(f => {
+            const w = f.replace(/^"|"$/g, "").trim().toLowerCase();
+            return w && !UI_FRAMING_WORDS.has(w) && !VERSION_TOKEN_RE.test(w) && !/^\d+$/.test(w);
+          });
+          expanded = true;
+        }
       }
     } else if (!json) {
       // a line of space-separated slugs (ls output, one-line lists)
       const listed = slugListTokens(raw);
-      if (listed) items = listed;
+      if (listed) { items = listed; expanded = true; }
     }
     let found = 0;
     for (const item of items) {
-      const slug = slugFromLine(item);
+      const text = String(item);
+      const slug = slugFromLine(text);
       if (slug) {
         found++;
         if (!seen.has(slug)) { seen.add(slug); out.push(slug); }
+      } else if (expanded && text.trim() && !isStructuralLine(text)) {
+        // a failed fragment of an expanded line is reported on its own; a
+        // parsing sibling must not hide it ("contact-form-7, yoast seo"
+        // still says what happened to "yoast seo")
+        skipped.push(text.trim());
       }
       if (out.length >= MAX_PARSED_SLUGS) return { slugs: out, skipped };
     }
-    if (!found && !isStructuralLine(raw)) skipped.push(raw.trim());
+    if (!expanded && !found && !isStructuralLine(raw)) skipped.push(raw.trim());
   }
   return { slugs: out, skipped };
 }

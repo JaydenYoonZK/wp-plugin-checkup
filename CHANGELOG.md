@@ -3,6 +3,20 @@
 All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.3.3] - 2026-07-17
+
+A third adversarial round attacked the parser with the pastes real admins actually produce, and won a few more times. Every win was a phantom verdict: "update" and "seo" are real closed directory plugins, so a mis-read header or filler word rendered as a genuine-looking closure row.
+
+### Fixed
+
+- A wp-admin Plugins-page copy no longer produces phantom rows. "Version 5.7.2 | By Automattic | View details" read its first word as the plugin "version"; lone action and status words ("Deactivate", "Active") became slugs of their own. Listing furniture is now recognized as framing, single-word names like "Jetpack" still resolve to their slug, and multi-word display names are reported in the skip note.
+- Pipe tables now track their header's plugin column, so wp plugin list --fields=status,name (and Markdown "| Status | Plugin |" tables) read the right cell instead of returning "active"/"inactive" phantoms while silently dropping every real plugin. Headerless rows take the one slug-shaped cell wherever it sits.
+- Headerless CSV rows treat statuses, update values, versions, and bare numbers as row furniture ("akismet,5.3.2,active" no longer yields an "active" row), and hand-made audit headers like "Plugin Name,Version" are recognized as headers.
+- Failed fragments of a comma list are reported individually; a sibling that parses no longer hides them ("contact-form-7, yoast seo" now says what happened to "yoast seo").
+- Conjunctions mark prose: "akismet and contact-form-7" is skipped with feedback instead of minting a verdict row for "and".
+- The bare integer from wp plugin list --format=count is reported as unrecognized instead of checked as a plugin named "12".
+- CR-only line endings (Excel's "CSV (Macintosh)" export) parse like any other; previously the whole paste collapsed into one line and leaked status fields as slugs.
+
 ## [1.3.2] - 2026-07-17
 
 A post-release adversarial verification round caught edge cases the 1.3.0 parser rewrite introduced, each one a phantom row waiting to happen. "update", "version", "seo", and "composer" are all real directory slugs (some closed), so a mis-read header or key could top the report with closure verdicts for plugins the user never pasted.
@@ -521,6 +535,7 @@ First stable release.
 - Dependency-free ES module engine (docs/checkup.js) with 13 Node tests.
 - Browser UI in the shared suite design with light and dark themes and a ?demo deep link.
 
+[1.3.3]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.3
 [1.3.2]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.2
 [1.3.1]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.1
 [1.3.0]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.0

@@ -439,3 +439,69 @@ test("WP-CLI pipe header rows are framing, not skipped content", () => {
   assert.deepEqual(detailed.slugs, ["akismet"]);
   assert.deepEqual(detailed.skipped, ["Totally Not A Plugin Name"]);
 });
+
+
+/* --------- regressions from the third adversarial round (v1.3.3) --------- */
+
+test("a wp-admin Plugins-page copy never yields phantom verdicts", () => {
+  // the most common paste this tool will receive: name line, row-action
+  // line, version/author line, per plugin. "version", "deactivate", and
+  // "active" must never become verdict rows ("update" and "seo" are even
+  // real CLOSED directory slugs, so phantoms would render as closures).
+  const paste = [
+    "Akismet Anti-spam: Spam Protection",
+    "Deactivate | Settings",
+    "Version 5.7.2 | By Automattic | View details",
+    "Jetpack",
+    "Deactivate",
+    "Version 14.5 | By Automattic | View details"
+  ].join("\n");
+  const detailed = parseSlugsDetailed(paste);
+  // "Jetpack" alone IS its own slug; the multi-word name is reported instead
+  assert.deepEqual(detailed.slugs, ["jetpack"]);
+  assert.deepEqual(detailed.skipped, ["Akismet Anti-spam: Spam Protection"]);
+  // lone UI words are furniture in any listing copy
+  assert.deepEqual(parseSlugsDetailed("Deactivate\nActive\nInactive\nSettings").slugs, []);
+  assert.deepEqual(parseSlugsDetailed("Deactivate\nActive\nInactive\nSettings").skipped, []);
+});
+
+test("pipe tables track their header column, so the slug never has to be first", () => {
+  const statusFirst = parseSlugsDetailed("| status | name |\n| active | akismet |\n| inactive | jetpack |");
+  assert.deepEqual(statusFirst.slugs, ["akismet", "jetpack"]);
+  assert.deepEqual(statusFirst.skipped, []);
+  assert.deepEqual(parseSlugs("| update | name |\n| none | akismet |\n| available | jetpack |"), ["akismet", "jetpack"]);
+  // headerless rows take the one slug-shaped cell, wherever it sits
+  assert.deepEqual(parseSlugs("| active | akismet |"), ["akismet"]);
+  // Markdown tables of display names resolve their single-word names
+  assert.deepEqual(parseSlugs("| Status | Plugin |\n|---|---|\n| Active | Akismet |"), ["akismet"]);
+  // a display-name cell with no slug sibling is reported, not dropped
+  assert.deepEqual(parseSlugsDetailed("| Some Plugin Name | active |").skipped, ["Some Plugin Name"]);
+});
+
+test("bare numbers and CSV row furniture never become slugs", () => {
+  // wp plugin list --format=count prints a bare integer
+  const count = parseSlugsDetailed("12");
+  assert.deepEqual(count.slugs, []);
+  assert.deepEqual(count.skipped, ["12"]);
+  // headerless CSV rows: versions, statuses, and update values ride along
+  assert.deepEqual(parseSlugs("akismet,5.3.2,active"), ["akismet"]);
+  assert.deepEqual(parseSlugs("akismet,none"), ["akismet"]);
+  assert.deepEqual(parseSlugs("akismet,available,on"), ["akismet"]);
+  // hand-made audit sheets use multi-word header phrases
+  assert.deepEqual(parseSlugs("Plugin Name,Version\nakismet,5.3.2\nwordpress-seo,22.1"), ["akismet", "wordpress-seo"]);
+});
+
+test("failed fragments of a comma list are reported, not hidden by their siblings", () => {
+  const mixed = parseSlugsDetailed("contact-form-7, yoast seo");
+  assert.deepEqual(mixed.slugs, ["contact-form-7"]);
+  assert.deepEqual(mixed.skipped, ["yoast seo"]);
+  // conjunctions mark prose: no verdict row for "and"
+  const prose = parseSlugsDetailed("akismet and contact-form-7");
+  assert.deepEqual(prose.slugs, []);
+  assert.deepEqual(prose.skipped, ["akismet and contact-form-7"]);
+});
+
+test("CR-only line endings (Excel CSV Macintosh) parse like any other", () => {
+  assert.deepEqual(parseSlugs("name,status\rakismet,active\rjetpack,active"), ["akismet", "jetpack"]);
+  assert.deepEqual(parseSlugs("akismet,active\rjetpack,active"), ["akismet", "jetpack"]);
+});
