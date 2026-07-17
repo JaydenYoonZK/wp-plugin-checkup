@@ -3,6 +3,16 @@
 All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.3.6] - 2026-07-17
+
+A sixth adversarial round reconstructed the Site Health debug copy from WordPress core source and probed the assoc-table fix, and both attacks landed.
+
+### Fixed
+
+- The Site Health debug copy (Tools, Site Health, Info, "Copy site info to clipboard": the most-shared diagnostic text in WordPress support) no longer mints phantom verdicts. Its theme_features, gd_formats, and imagemagick_file_formats lines are comma lists of feature and format names that were split as CSV, producing four to two hundred fifty phantom rows per paste; "post-thumbnails" is even a real closed directory plugin, so the report led with a false closure verdict for a theme feature. A non-identity "key: a, b, c" line is now metadata, never CSV. Markdown code fences around pasted reports stay silent, and plugin names from the wp-plugins-active section are reported for the user as before.
+- wp plugin get now parses plugins whose slug is itself a column word. The identity row of wp plugin get update ("name,update") is made of column words, so it was consumed as a table header: the queried plugin vanished silently and the metadata keys minted "author", "version", and "description" phantoms ("author" is a real closed plugin, rendering a false closure). Assoc rows now outrank header detection, only a literal Field/Value pair opens a table, and a tracked table re-detects a header only when its slug column holds an identity key, so "update,Update" under a name,title header is data about the real plugin "update".
+- A row pasted directly after a wp plugin get block is no longer eaten as table metadata: an unknown key ends the assoc block. Site Health's per-plugin "Auto-updates enabled/disabled" trailers stay out of the skip note.
+
 ## [1.3.5] - 2026-07-17
 
 A fifth adversarial round reconstructed real WP-CLI screens verbatim and caught the parser misreading two of them.
@@ -558,6 +568,7 @@ First stable release.
 - Dependency-free ES module engine (docs/checkup.js) with 13 Node tests.
 - Browser UI in the shared suite design with light and dark themes and a ?demo deep link.
 
+[1.3.6]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.6
 [1.3.5]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.5
 [1.3.4]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.4
 [1.3.3]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.3

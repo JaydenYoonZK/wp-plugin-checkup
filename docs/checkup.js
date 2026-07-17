@@ -29,6 +29,13 @@ const COLUMN_NAMES = new Set([
   // reports plugin_name/file/message columns; author appears in both
   "field", "value", "author", "message"
 ]);
+// The metadata keys a wp plugin get assoc table can print. A 2-cell row
+// whose key is none of these ends the assoc block: it belongs to whatever
+// the user pasted next, not to the table.
+const ASSOC_META_KEYS = new Set([
+  ...COLUMN_NAMES, "rating", "num_ratings", "requires", "requires_php",
+  "tested", "downloaded", "last_updated", "homepage", "download_link"
+]);
 // A column label: a column word, or a phrase/compound made only of column
 // words ("Plugin Name", "plugin_name"). "Site Name" is NOT one: "site" is
 // someone's data, and treating it as the plugin column minted phantoms once.
@@ -282,8 +289,12 @@ function isStructuralLine(line) {
   if (words.length === 1 && UI_FRAMING_WORDS.has(words[0])) return true;
   // a lone version number is a fragment of a wrapped table row
   if (words.length === 1 && VERSION_TOKEN_RE.test(words[0])) return true;
+  // Site Health debug-copy trailers on every plugin entry
+  if (/^auto-updates (enabled|disabled)$/i.test(s)) return true;
   if (words.length >= 2 && COLUMN_NAMES.has(words[0]) && VERSION_TOKEN_RE.test(words[1])) return true;
   if (/^(?:by|view|visit)\s+\S/i.test(s)) return true;
+  // Markdown code fences around a pasted debug report
+  if (/^`+$/.test(s)) return true;
   if (/^[{}[\]],?$/.test(s)) return true;
   if (isJsonMemberLine(s) && !/wpackagist-(?:mu)?plugin\//i.test(s)) return true;
   return false;
@@ -329,7 +340,11 @@ export function parseSlugsDetailed(input) {
     // CSV wins over the pipe split when a header is being tracked or the
     // line carries quoted fields: an audit sheet's quoted display name may
     // itself contain a pipe ("Yoast | SEO",wordpress-seo,active)
-    const csvish = raw.includes(",") && !hasJsonMember(raw) &&
+    // a non-identity "key: a, b, c" line is a metadata list (Site Health's
+    // theme_features/gd_formats lines), never CSV to split into slugs
+    const metaKeyList = /^-?\s*[a-z_]+:(\s|$)/.test(raw.trim()) &&
+      !/^-?\s*(?:name|slug|plugin):/.test(raw.trim());
+    const csvish = raw.includes(",") && !hasJsonMember(raw) && !metaKeyList &&
       (!raw.includes("|") || csvSlugColumn !== null || raw.includes('"'));
     if (!json && !csvish && raw.includes("|") && !hasJsonMember(raw) && !/^[+|:\-\s]+$/.test(raw.trim())) {
       // pipe-table row (wp-cli table, Markdown): track the header's plugin
@@ -337,10 +352,32 @@ export function parseSlugsDetailed(input) {
       // cell; without a header, take the one cell that looks like a slug
       const cells = raw.split("|").map(c => c.trim()).filter(Boolean);
       const lower = cells.map(c => c.toLowerCase());
-      if (isHeaderCells(lower)) {
+      const fieldValuePair = lower.length === 2 && lower[0] === "field" && lower[1] === "value";
+      // inside an assoc block, rows outrank header detection: the identity
+      // row of `wp plugin get update` is "| name | update |", which is made
+      // of column words but is DATA. An unknown key ends the block; only a
+      // literal Field/Value pair re-opens one.
+      if (pipeAssoc && cells.length === 2 && !fieldValuePair &&
+          !["name", "slug", "plugin"].includes(lower[0]) && !ASSOC_META_KEYS.has(lower[0])) {
+        pipeAssoc = false;
+      }
+      if (pipeAssoc && cells.length === 2 && !fieldValuePair) {
+        // assoc row: the name/slug/plugin keys carry the identity, the
+        // author/version/description/status keys are metadata (no items,
+        // no skip note)
+        items = ["name", "slug", "plugin"].includes(lower[0]) ? [cells[1]] : [];
+        expanded = true;
+      } else {
+      // a tracked table only re-detects a header when the tracked column
+      // cell is itself an identity key ("update,Update" under a name,title
+      // header is a data row about the real plugin "update")
+      const rowIsHeader = isHeaderCells(lower) &&
+        (pipeSlugColumn === null || cells.length !== pipeCellCount ||
+          ["slug", "plugin", "name", "title"].includes(lower[pipeSlugColumn] ?? ""));
+      if (rowIsHeader) {
         // a Field/Value header opens an assoc table (wp plugin get): the
         // plugin identity lives in its "name" ROW, not in a column
-        pipeAssoc = lower.length === 2 && lower[0] === "field" && lower[1] === "value";
+        pipeAssoc = fieldValuePair;
         const idx = pipeAssoc ? -1 : slugColumnIndex(lower);
         pipeSlugColumn = idx !== -1 ? idx : null;
         pipeCellCount = cells.length;
@@ -348,12 +385,7 @@ export function parseSlugsDetailed(input) {
       }
       expanded = true;
       items = null;
-      if (pipeAssoc && cells.length === 2) {
-        // assoc row: the name/slug/plugin keys carry the identity, the
-        // author/version/description/status keys are metadata (no items,
-        // no skip note)
-        items = ["name", "slug", "plugin"].includes(lower[0]) ? [cells[1]] : [];
-      } else if (pipeSlugColumn !== null && cells.length === pipeCellCount) {
+      if (pipeSlugColumn !== null && cells.length === pipeCellCount) {
         const tracked = cells[pipeSlugColumn] ?? "";
         if (soloSlug(tracked)) items = [tracked];
         // a display name under the tracked column still deserves its report
@@ -383,15 +415,28 @@ export function parseSlugsDetailed(input) {
           items = cells.filter(c => !isStructuralLine(c));
         }
       }
+      }
     } else if (!json && csvish) {
       const fields = csvFields(raw);
       if (fields) {
         const lower = fields.map(f => f.replace(/^"|"$/g, "").trim().toLowerCase());
+        const fieldValuePair = lower.length === 2 && lower[0] === "field" && lower[1] === "value";
+        // inside an assoc block, rows outrank header detection ("name,update"
+        // is the identity row of `wp plugin get update`, not a header); an
+        // unknown key ends the block, only Field/Value re-opens one
+        if (csvAssoc && fields.length === 2 && !fieldValuePair &&
+            !["name", "slug", "plugin"].includes(lower[0]) && !ASSOC_META_KEYS.has(lower[0])) {
+          csvAssoc = false;
+        }
         // a header row is made of column labels ("Plugin Name" counts,
-        // "Site Name" is someone's data); pick the plugin column by key
-        // priority so an exact "Slug"/"Plugin" beats an earlier "... Name"
-        if (isHeaderCells(lower)) {
-          csvAssoc = lower.length === 2 && lower[0] === "field" && lower[1] === "value";
+        // "Site Name" is someone's data); a tracked table only re-detects a
+        // header when its slug-column cell is an identity key ("update,Update"
+        // under a name,title header is data about the real plugin "update")
+        const rowIsHeader = !(csvAssoc && fields.length === 2 && !fieldValuePair) && isHeaderCells(lower) &&
+          (csvSlugColumn === null || fields.length !== csvFieldCount ||
+            ["slug", "plugin", "name", "title"].includes(lower[csvSlugColumn] ?? ""));
+        if (rowIsHeader) {
+          csvAssoc = fieldValuePair;
           const idx = csvAssoc ? -1 : slugColumnIndex(lower);
           csvSlugColumn = idx !== -1 ? idx : null;
           csvFieldCount = fields.length;

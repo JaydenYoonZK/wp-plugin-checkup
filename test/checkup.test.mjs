@@ -648,3 +648,63 @@ test("conjunction slash pairs never mint fillers as slugs", () => {
   // real grep pairs keep parsing
   assert.deepEqual(parseSlugs("akismet/akismet.php contact-form-7/wp-contact-form-7.php"), ["akismet", "contact-form-7"]);
 });
+
+
+test("an assoc block ends at the first unknown key", () => {
+  // rows pasted after a wp plugin get table belong to the user, not the table
+  assert.deepEqual(
+    parseSlugs("Field,Value\nname,akismet\nstatus,active\njetpack,active\nwordfence,inactive"),
+    ["akismet", "jetpack", "wordfence"]
+  );
+  assert.deepEqual(
+    parseSlugs("| Field | Value |\n| name | akismet |\n| jetpack | active |\n| wordfence | inactive |"),
+    ["akismet", "jetpack", "wordfence"]
+  );
+});
+
+test("a Site Health debug copy reports names without phantoms or trailer noise", () => {
+  const copy = [
+    "### wp-plugins-active (2) ###",
+    "",
+    "Akismet Anti-spam: Spam Protection: version 5.3.7, author: Automattic, Auto-updates enabled",
+    "Jetpack: version 14.5, author: Automattic, Auto-updates disabled"
+  ].join("\n");
+  const parsed = parseSlugsDetailed(copy);
+  assert.deepEqual(parsed.slugs, []);
+  assert.deepEqual(parsed.skipped, ["Akismet Anti-spam: Spam Protection: version 5.3.7", "Jetpack: version 14.5"]);
+});
+
+
+/* ---------- regressions from the sixth adversarial round (v1.3.6) ---------- */
+
+test("Site Health metadata comma lists never mint slugs", () => {
+  // theme_features / gd_formats / imagemagick_file_formats lines appear in
+  // every Site Health debug copy; "post-thumbnails" is even a real closed
+  // directory plugin, so splitting these would lead the report with a
+  // phantom closure verdict for a theme feature
+  const media = parseSlugsDetailed("theme_features: core-block-patterns, block-templates, post-thumbnails, editor-styles, html5\n\ngd_formats: GIF, JPEG, PNG, WebP");
+  assert.deepEqual(media.slugs, []);
+  assert.deepEqual(media.skipped, []);
+  // fenced full-copy flavor: names reported, everything else silent
+  const copy = "`\n### wp-plugins-active (1) ###\n\nJetpack: version 14.5, author: Automattic, Auto-updates disabled\n\n### wp-media ###\n\ngd_formats: GIF, PNG\n`";
+  const parsed = parseSlugsDetailed(copy);
+  assert.deepEqual(parsed.slugs, []);
+  assert.deepEqual(parsed.skipped, ["Jetpack: version 14.5"]);
+});
+
+test("wp plugin get parses plugins whose slug is itself a column word", () => {
+  // "update" and "author" are real (closed) directory slugs; their assoc
+  // identity rows ("name,update") are data, not headers
+  const table = "| Field | Value |\n| name | update |\n| title | Update |\n| author | Someone |\n| version | 1.1 |\n| status | active |";
+  const fromTable = parseSlugsDetailed(table);
+  assert.deepEqual(fromTable.slugs, ["update"]);
+  assert.deepEqual(fromTable.skipped, []);
+  assert.deepEqual(parseSlugs("Field,Value\nname,author\ntitle,Author Tools\nstatus,active"), ["author"]);
+  // a tracked table's data row made of column words is data too
+  assert.deepEqual(parseSlugs("name,title\nakismet,Akismet\nupdate,Update\njetpack,Jetpack"), ["akismet", "update", "jetpack"]);
+  // two consecutive assoc tables both parse
+  assert.deepEqual(
+    parseSlugs("| Field | Value |\n| name | akismet |\n| status | active |\n| Field | Value |\n| name | jetpack |\n| status | active |"),
+    ["akismet", "jetpack"]
+  );
+});
