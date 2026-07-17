@@ -1017,3 +1017,49 @@ test("core-subtree files and dotfiles are listing framing", () => {
   // tree -a hidden entries stay quiet
   assert.deepEqual(parseSlugsDetailed("plugins\n├── .htaccess\n├── akismet\n└── wordpress-seo").skipped, []);
 });
+
+
+test("section latches survive odd filenames and prose colons are not headers", () => {
+  // unicode names and spaces-with-extension names are still entries
+  const odd = parseSlugsDetailed("plugins/akismet:\nakismet.php\nविवरण.txt\nbackup (1).zip\nviews");
+  assert.deepEqual(odd.slugs, []);
+  assert.deepEqual(odd.skipped, []);
+  // prose ending in "path:" must not swallow what follows
+  const prose = parseSlugsDetailed("look in /var/www/html:\nakismet\njetpack");
+  assert.deepEqual(prose.slugs, ["akismet", "jetpack"]);
+  assert.deepEqual(prose.skipped, ["look in /var/www/html:"]);
+});
+
+
+/* ------- regressions from the sixteenth adversarial round (v1.3.16) ------- */
+
+test("section latches release only on positive command evidence", () => {
+  // filenames and prompts are indistinguishable by shape; quoted, spaced,
+  // and unicode names stay consumed, commands release
+  const quoted = parseSlugsDetailed("wp-content/plugins/contact-form-7/admin:\nadmin.php\n'edit contact form.php'\nclass-loader.php");
+  assert.deepEqual(quoted.slugs, []);
+  assert.deepEqual(quoted.skipped, []);
+  assert.deepEqual(parseSlugsDetailed("plugins/x/assets:\nFont Awesome\nshortcodes").slugs, []);
+  assert.deepEqual(
+    parseSlugs("plugins/akismet:\nakismet.php\nwp plugin list --field=name\njetpack"),
+    ["jetpack"]
+  );
+});
+
+test("columned wp-content listings tolerate the universal index.php stub", () => {
+  const columned = parseSlugsDetailed("index.php\tplugins\t\tupgrade\nlanguages\tthemes\t\tuploads");
+  assert.deepEqual(columned.slugs, []);
+  assert.deepEqual(columned.skipped, []);
+  assert.deepEqual(parseSlugsDetailed("index.php\nlanguages\nplugins\nthemes\nupgrade\nuploads").slugs, []);
+  // a plugins-directory list containing the stubs still parses its plugins
+  assert.deepEqual(parseSlugs("akismet hello.php index.php woocommerce"), ["akismet", "hello-dolly", "woocommerce"]);
+});
+
+test("ls -l stub rows and translation sections stay out of the skip note", () => {
+  const lsl = parseSlugsDetailed("total 0\ndrwxr-xr-x@ 14 me wheel 448 Jul 17 15:26 akismet\n-rw-r--r-- 1 me wheel 0 Jul 17 15:43 index.php");
+  assert.deepEqual(lsl.slugs, ["akismet"]);
+  assert.deepEqual(lsl.skipped, []);
+  const lsr = parseSlugsDetailed("wp-content/plugins:\nakismet\n\nwp-content/languages/plugins:\nakismet-ru_RU.mo");
+  assert.deepEqual(lsr.slugs, ["akismet"]);
+  assert.deepEqual(lsr.skipped, []);
+});

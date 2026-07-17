@@ -3,6 +3,17 @@
 All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.3.16] - 2026-07-17
+
+A sixteenth adversarial round replayed the full corpus at the shipped version (clean) and probed the fifteenth's own fixes.
+
+### Fixed
+
+- ls -R section latches release only on positive command evidence: a shell prompt or a command word. Filenames and prompts are indistinguishable by shape, so quoted names ('edit contact form.php'), space-bearing asset directories (Font Awesome), and unicode filenames no longer release the latch and leak the section's remaining internals as phantom rows.
+- Columned ls of wp-content tolerates the universal index.php stub: the mixed row every real install prints ("index.php  plugins  upgrade") is a directory listing, not a slug list, so "plugins" (the real abandoned directory plugin) stops topping the report.
+- ls -l rows for stubs, dot entries, and hidden files stay out of the skip note, and the languages/plugins translations section no longer reopens plugins-root parsing.
+- Prose ending in "path:" is not a section header (headers with spaces must be absolute paths, like Local by Flywheel's), so a sentence cannot silently swallow the lines after it.
+
 ## [1.3.15] - 2026-07-17
 
 A fifteenth adversarial round attacked with real fixtures at real paths and finished the listing family.
@@ -665,6 +676,7 @@ First stable release.
 - Dependency-free ES module engine (docs/checkup.js) with 13 Node tests.
 - Browser UI in the shared suite design with light and dark themes and a ?demo deep link.
 
+[1.3.16]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.16
 [1.3.15]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.15
 [1.3.14]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.14
 [1.3.13]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.13

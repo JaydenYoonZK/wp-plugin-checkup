@@ -170,7 +170,7 @@ export function slugListTokens(line) {
   // re-check the cleaned tokens: stripping "w/" must not resurrect a filler
   if (cleaned.some(t => STOP_WORDS.has(t))) return null;
   if (cleaned.every(t => isColumnLabel(t))) return null;
-  if (cleaned.every(t => WP_DIR_WORD_RE.test(t))) return null;
+  if (cleaned.every(t => WP_DIR_WORD_RE.test(t) || FILE_ALIASES.get(t) === null)) return null;
   if (!cleaned.every(t => SLUG_RE.test(t) && !/^\d+$/.test(t))) return null;
   // core cron hooks and schedule names ride along in wp cron ids output;
   // they are scheduler vocabulary, not plugins
@@ -410,8 +410,9 @@ function isStructuralLine(line) {
   if (words.length >= 2 && words.every(w => CORE_CRON_WORDS.has(w))) return true;
   // hidden entries surfaced by tree -a / ls -a are framing
   if (words.length === 1 && /^\.[A-Za-z0-9._-]*$/.test(words[0])) return true;
-  // a run of bare core directory names is a wp-content listing row
-  if (words.every(w => WP_DIR_WORD_RE.test(w))) return true;
+  // a run of bare core directory names is a wp-content listing row; the
+  // universal index.php stub rides along in every real copy
+  if (words.length >= 2 && words.every(w => WP_DIR_WORD_RE.test(w) || FILE_ALIASES.get(w.replace(/\.php$/i, "")) === null)) return true;
   // a lone underscore compound of column words is a db/table heading
   if (words.length === 1 && /_/.test(words[0]) && isColumnLabel(words[0])) return true;
   if (words.length >= 2 && words.every(w => isColumnLabel(w))) return true;
@@ -430,6 +431,13 @@ function isStructuralLine(line) {
   // tree(1) summary trailer, whole or comma-split; ls -l total line
   if (/^\d+\s+(?:director(?:y|ies)|files?)(?:,\s*\d+\s+files?)?,?$/i.test(s)) return true;
   if (/^total\s+\d+$/i.test(s)) return true;
+  // ls -l rows whose name is a stub, a dot entry, or a hidden file
+  if (/^[dlbcsp-][rwxsStT+@.-]{8,}\s/.test(s)) {
+    const parts = s.split(/\s+/).filter(Boolean);
+    const arrow = parts.indexOf("->");
+    const nm = (arrow > 0 ? parts[arrow - 1] : parts[parts.length - 1]) || "";
+    if (/^\.{1,2}$/.test(nm) || /^\./.test(nm) || FILE_ALIASES.get(nm.replace(/\.php$/i, "")) === null) return true;
+  }
   // the silence-is-golden stubs inside a core directory listing
   if (/(?:^|[\s/])(?:wp-content|plugins|mu-plugins|themes|uploads|languages|upgrade)\/index\.php\/?$/i.test(s)) return true;
   // deep paths under the non-plugin core subtrees (a theme file, an upload,
@@ -504,10 +512,11 @@ export function parseSlugsDetailed(input) {
       const next = String(lines[li + 1] ?? "").trim();
       const prev = String(lines[li - 1] ?? "").trim();
       const afterBlank = String(lines[li + 2] ?? "").trim();
+      const dirRunWord = (w) => WP_DIR_WORD_RE.test(w) || /^index\.php$/i.test(w);
       if (parseTreeLine(next) || next.toLowerCase().startsWith(raw.trim().toLowerCase() + "/") ||
           (!next && TREE_TRAILER_RE.test(afterBlank)) ||
           // a run of bare directory words is an ls of wp-content itself
-          WP_DIR_WORD_RE.test(next) || WP_DIR_WORD_RE.test(prev)) {
+          dirRunWord(next) || dirRunWord(prev)) {
         if (/^(?:mu-)?plugins$/i.test(raw.trim())) treePluginsPrefix = -1;
         continue;
       }
@@ -517,20 +526,26 @@ export function parseSlugsDetailed(input) {
     // an ls -R section header ("plugins/akismet/views:"): sections at the
     // plugins root list plugins, deeper sections list a plugin's own files
     const lsHeader = !json ? /^([^:]+):$/.exec(raw.trim()) : null;
-    if (lsHeader && (lsHeader[1].includes("/") || lsHeader[1] === "." || WP_DIR_WORD_RE.test(lsHeader[1]))) {
+    const headerPathOk = lsHeader && (!/\s/.test(lsHeader[1]) || /^(?:\/|[A-Za-z]:[\\/]|~\/)/.test(lsHeader[1]));
+    if (lsHeader && headerPathOk && (lsHeader[1].includes("/") || lsHeader[1] === "." || WP_DIR_WORD_RE.test(lsHeader[1]))) {
       const path = lsHeader[1].replace(/\/+$/, "");
       // a plugins root ends the skip; an installed plugin named "plugins"
       // (plugins/plugins) is a plugin's own directory, not a second root
       lsSectionSkip = !((path === "." || /(?:^|\/)(?:wp-content\/)?(?:mu-)?plugins$/i.test(path)) &&
-        !/plugins\/(?:mu-)?plugins$/i.test(path));
+        !/(?:plugins|languages)\/(?:mu-)?plugins$/i.test(path));
       continue;
     }
     if (lsSectionSkip && raw.trim()) {
-      // the latch holds only for filename-shaped entries; a prompt or a new
-      // command's output ends the section (ls -R prints no trailing blank)
-      const entryShaped = raw.trim().split(/\s+/).every(t => /^[A-Za-z0-9._@-]+$/.test(t));
-      if (entryShaped) continue;
-      lsSectionSkip = false;
+      // filenames and prompts are indistinguishable by shape ("Font
+      // Awesome" vs "$ wp plugin list"), so the latch releases only on
+      // POSITIVE evidence of a new context: a shell prompt or a command
+      // word. Everything else in the section is a file.
+      const t = raw.trim();
+      if (/^(?:[$%>]\s|(?:sudo\s+)?(?:wp|ls|find|tree|cd|cat|grep|php|composer)\s)/.test(t)) {
+        lsSectionSkip = false;
+      } else {
+        continue;
+      }
     }
     // tree(1) branch lines, either charset: directory nodes are structure,
     // and the children of a themes/uploads subtree are not plugins
