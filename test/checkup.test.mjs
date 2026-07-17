@@ -1105,3 +1105,21 @@ test("tree -F and path-form roots keep a plugin slugged like a core directory", 
   // tree -F of wp-content: top-level uploads/ subtree stays structure
   assert.deepEqual(parseSlugs("wp-content/\n|-- plugins/\n|   |-- akismet/\n|   `-- uploads/\n|-- themes/\n|   `-- twentytwentyfive/\n`-- uploads/\n    `-- 2026/"), ["akismet", "uploads"]);
 });
+
+
+/* ----- regressions from the final gate (v1.3.18) ----- */
+
+test("a plugin's own config files never mis-release the ls -R latch", () => {
+  // composer.json and wp-cli.yml ship inside most modern plugins; the
+  // command-word match must not fire on them and leak the section
+  const jetpack = parseSlugsDetailed("plugins/jetpack:\ncomposer.json\nincludes\nsrc\nwp-cli.yml\nlanguages");
+  assert.deepEqual(jetpack.slugs, []);
+  assert.deepEqual(jetpack.skipped, []);
+  // a retina @2x asset must not read as a user@host prompt
+  const retina = parseSlugsDetailed("plugins/foo/assets/images:\nlogo@2x.png\nicons\nsprites");
+  assert.deepEqual(retina.slugs, []);
+  assert.deepEqual(retina.skipped, []);
+  // genuine prompts and commands still release
+  assert.deepEqual(parseSlugsDetailed("plugins/akismet:\nakismet.php\nviews\nubuntu@web-01:/var/www/html$ wp plugin list --field=name\nakismet\ncontact-form-7").slugs, ["akismet", "contact-form-7"]);
+  assert.deepEqual(parseSlugs("plugins/x:\nfile.php\njay@mac plugins % wp plugin list --field=name\njetpack\nwordfence"), ["jetpack", "wordfence"]);
+});

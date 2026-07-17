@@ -157,11 +157,14 @@ function looksLikeCommandLine(t) {
   return (
     /\S\/\S/.test(t) ||                                  // a path argument (entries never have "/")
     /(?:^|\s)(?:-{1,2}[A-Za-z]|\/[A-Za-z])(?=$|[\s=])/.test(t) || // a -flag / --flag / /flag
-    /[\w.-]+@[\w.-]+/.test(t) ||                          // a user@host prompt prefix
+    /[\w.-]+@[\w.-]+:/.test(t) ||                         // a user@host: prompt prefix (the colon rules out logo@2x.png)
     /^\s*[➜❯▶λ]/.test(t) ||                               // oh-my-zsh / starship glyph
     /(?:^|\S)[$#>]\s+\S/.test(t) ||                       // a $ / # / > sigil then a command
     /\s%\s+\S/.test(t) ||                                 // a zsh % prompt
-    /^(?:sudo\s+)?(?:wp|wp-cli|ls|ll|la|dir|exa|eza|lsd|find|fd|tree|cd|cat|bat|grep|rg|ag|php|composer|git|npm|npx|pnpm|yarn|du|df|rsync|scp|echo|pwd|which|whoami|stat)\b/i.test(bare)
+    // a command word followed by an argument, or the bare command alone.
+    // The trailing (?:\s|$) is load-bearing: "composer.json" and
+    // "wp-cli.yml" are plugin files, not the composer / wp-cli commands.
+    /^(?:sudo\s+)?(?:wp|wp-cli|ls|ll|la|dir|exa|eza|lsd|find|fd|tree|cd|cat|bat|grep|rg|ag|php|composer|git|npm|npx|pnpm|yarn|du|df|rsync|scp|echo|pwd|which|whoami|stat)(?:\s|$)/i.test(bare)
   );
 }
 

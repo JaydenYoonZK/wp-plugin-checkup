@@ -3,6 +3,15 @@
 All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.3.18] - 2026-07-17
+
+A final comprehensive gate replayed the whole corpus and confirmed the engine complete; this ships the last two over-corrections it and self-review surfaced, and freezes the filesystem-listing family.
+
+### Fixed
+
+- A plugin's own config files no longer mis-release the ls -R section latch. The command-word check matched composer.json and wp-cli.yml (ubiquitous inside modern plugins) because it ended on a word boundary; it now requires the command word to be followed by whitespace or end of line, so a recursive ls -R that descends into such a plugin stops leaking its internal directory names as phantom verdicts.
+- A retina @2x asset file no longer reads as a user@host prompt: the prompt-prefix check now requires the host to be followed by a colon (ubuntu@web-01:), which a filename like logo@2x.png never carries. Genuine Ubuntu, macOS, and oh-my-zsh prompts still release the latch.
+
 ## [1.3.17] - 2026-07-17
 
 A seventeenth adversarial round attacked the listing latch with authentic OS prompts and real command trees.
@@ -685,6 +694,7 @@ First stable release.
 - Dependency-free ES module engine (docs/checkup.js) with 13 Node tests.
 - Browser UI in the shared suite design with light and dark themes and a ?demo deep link.
 
+[1.3.18]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.18
 [1.3.17]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.17
 [1.3.16]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.16
 [1.3.15]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.15

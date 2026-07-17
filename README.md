@@ -92,7 +92,7 @@ for (const slug of slugs) {
 npm test
 ```
 
-107 tests cover table, CSV, JSON, YAML, URL, composer, and installed-path parsing; space-separated lists; skipped-line reporting; input limits; strict API dates and WordPress versions; API error and closure classification; exact threshold boundaries; compatibility gaps; missing evidence; sorting; entity decoding; static page invariants; and every verdict path against fixed dates. Coverage is measured with `npm run test:coverage`.
+108 tests cover table, CSV, JSON, YAML, URL, composer, and installed-path parsing; space-separated lists; skipped-line reporting; input limits; strict API dates and WordPress versions; API error and closure classification; exact threshold boundaries; compatibility gaps; missing evidence; sorting; entity decoding; static page invariants; and every verdict path against fixed dates. Coverage is measured with `npm run test:coverage`.
 
 ## Limits
 
