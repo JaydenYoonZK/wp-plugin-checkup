@@ -505,3 +505,87 @@ test("CR-only line endings (Excel CSV Macintosh) parse like any other", () => {
   assert.deepEqual(parseSlugs("name,status\rakismet,active\rjetpack,active"), ["akismet", "jetpack"]);
   assert.deepEqual(parseSlugs("akismet,active\rjetpack,active"), ["akismet", "jetpack"]);
 });
+
+
+test("checklists, numbered lists, and quoted forwards parse their slugs", () => {
+  assert.deepEqual(parseSlugs("- akismet\n- contact-form-7"), ["akismet", "contact-form-7"]);
+  assert.deepEqual(parseSlugs("* akismet\n* wp-mail-smtp"), ["akismet", "wp-mail-smtp"]);
+  assert.deepEqual(parseSlugs("1. akismet\n2) contact-form-7"), ["akismet", "contact-form-7"]);
+  assert.deepEqual(parseSlugs("> akismet\n> contact-form-7"), ["akismet", "contact-form-7"]);
+  // the marker strip must not eat a YAML item or a version-led line
+  assert.deepEqual(parseSlugs("- name: akismet\n  status: active"), ["akismet"]);
+  assert.equal(slugFromLine("5.7 akismet"), null);
+});
+
+test("Markdown alignment rows are borders, and ambiguous pipe rows are reported", () => {
+  const md = parseSlugsDetailed("| Plugin | Status |\n|:--|--:|\n| akismet | active |");
+  assert.deepEqual(md.slugs, ["akismet"]);
+  assert.deepEqual(md.skipped, []);
+  // two slug-shaped cells with no header: guessing risks a phantom and
+  // dropping risks silence, so both candidates go to the skip report
+  const ambiguous = parseSlugsDetailed("| akismet | jetpack |");
+  assert.deepEqual(ambiguous.slugs, []);
+  assert.deepEqual(ambiguous.skipped, ["akismet", "jetpack"]);
+});
+
+
+/* --------- regressions from the fourth adversarial round (v1.3.4) --------- */
+
+test("multi-column folder listings parse every entry (ls -F, ls -p, grep pairs)", () => {
+  // the first-path-segment rule must never swallow a whole grid line
+  const grid = parseSlugsDetailed("akismet/    contact-form-7/    hello.php");
+  assert.deepEqual(grid.slugs, ["akismet", "contact-form-7", "hello-dolly"]);
+  assert.deepEqual(grid.skipped, []);
+  assert.deepEqual(parseSlugs("akismet/ jetpack/ wordfence/"), ["akismet", "jetpack", "wordfence"]);
+  assert.deepEqual(parseSlugs("akismet/akismet.php contact-form-7/wp-contact-form-7.php"), ["akismet", "contact-form-7"]);
+  // a checklist marker in front of a multi-slug line expands too
+  assert.deepEqual(parseSlugs("- akismet contact-form-7"), ["akismet", "contact-form-7"]);
+});
+
+test("piped display names never resolve their first word (OMGF, iubenda)", () => {
+  // 7 of the top 250 plugins carry " | " in their display name, and the
+  // first word is NOT the slug (OMGF lives at host-webfonts-local), so
+  // resolving it would render a false GONE row for a healthy plugin
+  const omgf = parseSlugsDetailed("OMGF | GDPR/DSGVO Compliant, Faster Google Fonts. Easy.");
+  assert.deepEqual(omgf.slugs, []);
+  assert.deepEqual(omgf.skipped, ["OMGF | GDPR/DSGVO Compliant, Faster Google Fonts. Easy."]);
+  // real table rows keep working: siblings there are furniture
+  assert.deepEqual(parseSlugs("| akismet | active | none | 5.7 |"), ["akismet"]);
+});
+
+test("CSV header picking is by key priority, not field order", () => {
+  // "Site Name" merely contains the word name; the exact Plugin column wins
+  assert.deepEqual(
+    parseSlugs("Site Name,Plugin,Status\nblog-one,akismet,active\nshop,woocommerce,active"),
+    ["akismet", "woocommerce"]
+  );
+  assert.deepEqual(
+    parseSlugs("Author Name,Plugin Slug,Status\nAutomattic,akismet,active\nWPForms,wpforms-lite,active"),
+    ["akismet", "wpforms-lite"]
+  );
+});
+
+test("quoted CSV fields may contain pipes; JSON lines are never pipe-split", () => {
+  const sheet = parseSlugsDetailed('Plugin Name,Slug,Status\n"Yoast | SEO",wordpress-seo,active\nAkismet,akismet,active');
+  assert.deepEqual(sheet.slugs, ["wordpress-seo", "akismet"]);
+  assert.deepEqual(sheet.skipped, []);
+  const json = parseSlugsDetailed('{"name":"akismet","description":"Anti-spam | protection by Automattic"}');
+  assert.deepEqual(json.slugs, ["akismet"]);
+  assert.deepEqual(json.skipped, []);
+});
+
+test("forwarded and wrapped table framing stays out of the skip note", () => {
+  // email-quoted wp-cli table: borders and blank quote lines are framing
+  const quoted = parseSlugsDetailed("> +---+---+\n> | name | status |\n> | akismet | active |\n> +---+---+\n>");
+  assert.deepEqual(quoted.slugs, ["akismet"]);
+  assert.deepEqual(quoted.skipped, []);
+  // a soft-wrapped row leaves a lone version fragment behind
+  const wrapped = parseSlugsDetailed("| name | status | update |\n| very-long-plugin-slug | active | none\n| 5.3.2 |");
+  assert.deepEqual(wrapped.slugs, ["very-long-plugin-slug"]);
+  assert.deepEqual(wrapped.skipped, []);
+  // a stale pipe column falls back to reading the row by shape
+  assert.deepEqual(
+    parseSlugs("| name | status |\n| akismet | active |\n| inactive | jetpack |"),
+    ["akismet", "jetpack"]
+  );
+});

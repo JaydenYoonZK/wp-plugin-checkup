@@ -3,6 +3,18 @@
 All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.3.4] - 2026-07-17
+
+A fourth adversarial round went after the seams between the parser's format branches and the pastes of working sysadmins. Two of its finds mattered a lot.
+
+### Fixed
+
+- Piped display names no longer resolve their first word. Seven of the top 250 plugins carry " | " in their display name (OMGF, iubenda, and friends), and the first word is not the slug, so a wp-admin copy produced a false "Not in the directory" row for a healthy plugin. A lone slug-shaped pipe cell is now trusted only when its sibling cells are table furniture; otherwise the line is reported as skipped.
+- Multi-column folder listings parse every entry. An ls -F or ls -p grid ("akismet/  contact-form-7/  hello.php") silently kept only the first entry because the first-path-segment rule swallowed the whole line; path reads now apply only to single-path lines, trailing slashes count as slug markers, and grep-style folder/file pairs resolve per token. Checklist markers in front of multi-slug lines expand fully too.
+- The CSV header picker chooses the plugin column by key priority instead of field order, so a "Site Name" or "Author Name" column no longer beats an exact "Plugin" or "Plugin Slug" column (a multisite audit export used to render one phantom per subsite while dropping every real plugin).
+- Quoted CSV fields may contain pipes: an audit row like "Yoast | SEO",wordpress-seo,active now reads its slug column instead of being shredded by the pipe splitter. JSON lines with pipes in their values are read whole for the same reason.
+- Framing stays out of the skip note: email-quoted table borders from a forwarded wp plugin list, blank quote lines, lone version fragments of soft-wrapped rows, and a stale pipe-table column now either parse correctly or stay silent instead of surfacing as "not recognized" noise.
+
 ## [1.3.3] - 2026-07-17
 
 A third adversarial round attacked the parser with the pastes real admins actually produce, and won a few more times. Every win was a phantom verdict: "update" and "seo" are real closed directory plugins, so a mis-read header or filler word rendered as a genuine-looking closure row.
@@ -535,6 +547,7 @@ First stable release.
 - Dependency-free ES module engine (docs/checkup.js) with 13 Node tests.
 - Browser UI in the shared suite design with light and dark themes and a ?demo deep link.
 
+[1.3.4]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.4
 [1.3.3]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.3
 [1.3.2]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.2
 [1.3.1]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.1

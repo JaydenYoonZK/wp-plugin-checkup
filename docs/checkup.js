@@ -45,6 +45,13 @@ const STOP_WORDS = new Set(["and", "or", "the", "with", "plus", "also", "then"])
 
 /* ----------------------------- parsing ----------------------------- */
 
+/** Email-quote prefixes on a forwarded list, and the markers of a
+ *  hand-written checklist ("- akismet", "* akismet", "1. akismet"). A YAML
+ *  "- name:" item survives because the yaml pattern tolerates a missing dash. */
+function stripLineDecorations(s) {
+  return s.replace(/^(?:>\s*)+/, "").replace(/^(?:[-*+•]|\d+[.)])\s+/, "");
+}
+
 /** A line of space-separated slugs (ls output of wp-content/plugins, a
  *  hand-typed one-liner). Three discriminators keep prose and table headers
  *  out, because every rejected line is reported while every accepted token
@@ -58,9 +65,16 @@ export function slugListTokens(line) {
   const tokens = line.trim().split(/\s+/).filter(Boolean);
   if (tokens.length < 2) return null;
   if (WPCLI_STATUSES.has(tokens[1]) || VERSION_TOKEN_RE.test(tokens[1])) return null;
-  if (!tokens.some(t => /[-_.0-9]/.test(t))) return null;
+  if (!tokens.some(t => /[-_./0-9]/.test(t))) return null;
   if (tokens.some(t => STOP_WORDS.has(t))) return null;
-  const cleaned = tokens.map(t => t.replace(/\.php$/i, ""));
+  const cleaned = tokens.map(t => {
+    // ls -F / ls -p decorate entries with a trailing slash, and grep-style
+    // output pairs the folder with its file: akismet/akismet.php
+    let w = t.replace(/\/+$/, "");
+    const pair = /^([a-z0-9_-]+)\/[a-z0-9_.-]+$/.exec(w);
+    if (pair) w = pair[1];
+    return w.replace(/\.php$/i, "");
+  });
   if (cleaned.every(t => COLUMN_NAMES.has(t))) return null;
   if (!cleaned.every(t => SLUG_RE.test(t) && !/^\d+$/.test(t))) return null;
   return cleaned;
@@ -72,8 +86,12 @@ export function slugFromLine(line) {
   let s = line.trim();
   if (!s || s.startsWith("#") || s.startsWith("//")) return null;
 
-  // WP-CLI table borders and separators (+----+----+)
-  if (/^[+|\-\s]+$/.test(s)) return null;
+  // WP-CLI table borders, separators (+----+----+), and Markdown
+  // alignment rows (|:--|--:|)
+  if (/^[+|:\-\s]+$/.test(s)) return null;
+
+  // email-quote prefixes and checklist markers
+  s = stripLineDecorations(s);
 
   // WP-CLI YAML list item: "- name: akismet" (also bare "slug: x" / "plugin: x")
   const yaml = /^-?\s*(?:name|slug|plugin):\s*(.+)$/.exec(s);
@@ -114,7 +132,9 @@ export function slugFromLine(line) {
     s = s.replace(/\\/g, "/");
     const pluginPath = /(?:^|\/)(?:wp-content\/)?plugins\/([^/]+)/i.exec(s);
     if (pluginPath) s = pluginPath[1];
-    else if (s.includes("/")) s = s.split("/").filter(Boolean)[0] || "";
+    // first-segment reads only apply to a single path; on a multi-entry
+    // line (an ls -F grid) it would swallow every entry after the first "/"
+    else if (!/\s/.test(s) && s.includes("/")) s = s.split("/").filter(Boolean)[0] || "";
   }
 
   // Multi-token leftovers: keep the first cell of tabular tool output (second
@@ -133,8 +153,8 @@ export function slugFromLine(line) {
   }
   s = tokens[0] || "";
 
-  // strip a trailing .php just in case
-  s = s.replace(/\.php$/i, "");
+  // strip an ls -F trailing slash and a trailing .php just in case
+  s = s.replace(/\/+$/, "").replace(/\.php$/i, "");
 
   // valid plugin slugs are lowercase letters, numbers, hyphens, underscores
   s = s.toLowerCase();
@@ -206,9 +226,10 @@ function hasJsonMember(line) {
 // plugin metadata rather than identity, and the braces and non-plugin members
 // of a pasted composer.json. These never count as "skipped" feedback.
 function isStructuralLine(line) {
-  const s = line.trim();
+  // decorations first, so a quoted border ("> +---+") reads as the border
+  const s = stripLineDecorations(line.trim()).trim();
   if (!s || s.startsWith("#") || s.startsWith("//")) return true;
-  if (/^[+|\-\s]+$/.test(s)) return true;
+  if (/^[+|:\-\s]+$/.test(s)) return true;
   if (/^-?\s*[a-z_]+:(\s|$)/.test(s) && !/^-?\s*(?:name|slug|plugin):/.test(s)) return true;
   if (s.startsWith("|")) {
     const first = (s.split("|").map(c => c.trim()).find(c => c) || "").toLowerCase();
@@ -224,6 +245,8 @@ function isStructuralLine(line) {
   // "Active"), "Version 5.7.2 ..." meta lines, and the "By Author" /
   // "View details" / "Visit plugin site" phrases
   if (words.length === 1 && UI_FRAMING_WORDS.has(words[0])) return true;
+  // a lone version number is a fragment of a wrapped table row
+  if (words.length === 1 && VERSION_TOKEN_RE.test(words[0])) return true;
   if (words.length >= 2 && COLUMN_NAMES.has(words[0]) && VERSION_TOKEN_RE.test(words[1])) return true;
   if (/^(?:by|view|visit)\s+\S/i.test(s)) return true;
   if (/^[{}[\]],?$/.test(s)) return true;
@@ -266,7 +289,12 @@ export function parseSlugsDetailed(input) {
     }
     let items = [raw];
     let expanded = false; // items are fragments of the line, reported per item
-    if (!json && raw.includes("|") && !/^[+|\-\s]+$/.test(raw.trim())) {
+    // CSV wins over the pipe split when a header is being tracked or the
+    // line carries quoted fields: an audit sheet's quoted display name may
+    // itself contain a pipe ("Yoast | SEO",wordpress-seo,active)
+    const csvish = raw.includes(",") && !hasJsonMember(raw) &&
+      (!raw.includes("|") || csvSlugColumn !== null || raw.includes('"'));
+    if (!json && !csvish && raw.includes("|") && !hasJsonMember(raw) && !/^[+|:\-\s]+$/.test(raw.trim())) {
       // pipe-table row (wp-cli table, Markdown): track the header's plugin
       // column so status-first layouts (--fields=status,name) read the right
       // cell; without a header, take the one cell that looks like a slug
@@ -279,26 +307,61 @@ export function parseSlugsDetailed(input) {
         continue;
       }
       expanded = true;
+      items = null;
       if (pipeSlugColumn !== null && cells.length === pipeCellCount) {
-        items = [cells[pipeSlugColumn] ?? ""];
-      } else {
-        const cell = cells.find(soloSlug);
-        // no slug-shaped cell: surface the content cells (a display-name
-        // row deserves a skip report), drop the furniture ones silently
-        items = cell ? [cell] : cells.filter(c => !isStructuralLine(c));
+        const tracked = cells[pipeSlugColumn] ?? "";
+        if (soloSlug(tracked)) items = [tracked];
+        // a display name under the tracked column still deserves its report
+        else if (!isStructuralLine(tracked)) items = [tracked];
+        // a framing cell under the tracked column means this row belongs to
+        // a differently shaped table; fall through to the shape-based read
       }
-    } else if (!json && raw.includes(",") && !hasJsonMember(raw)) {
+      if (items === null) {
+        const solos = cells.filter(soloSlug);
+        if (solos.length === 1) {
+          // trust the lone slug-shaped cell only when its siblings are table
+          // furniture. "OMGF | GDPR Compliant..." is a piped DISPLAY NAME
+          // whose first word is not its slug; resolving it would put a
+          // phantom verdict on a healthy plugin.
+          const others = cells.filter(c => c !== solos[0]);
+          if (others.every(c => isStructuralLine(c))) items = [solos[0]];
+          else { items = []; skipped.push(raw.trim()); }
+        } else if (solos.length > 1) {
+          // two slug-shaped cells with no header is ambiguous: which is the
+          // plugin? Guessing risks a phantom, dropping risks silence, so
+          // every candidate goes to the skip report for the user to decide
+          items = [];
+          for (const c of solos) skipped.push(c);
+        } else {
+          // no slug-shaped cell: surface the content cells (a display-name
+          // row deserves a skip report), drop the furniture ones silently
+          items = cells.filter(c => !isStructuralLine(c));
+        }
+      }
+    } else if (!json && csvish) {
       const fields = csvFields(raw);
       if (fields) {
         const lower = fields.map(f => f.replace(/^"|"$/g, "").trim().toLowerCase());
-        // a header cell is a column word, or a multi-word column phrase
-        // like "Plugin Name" from a hand-made audit sheet
-        const headerish = (f) => HEADER_NAMES.has(f) ||
-          (/\s/.test(f) && f.split(/\s+/).every(w => COLUMN_NAMES.has(w) || w === "by"));
+        // a header cell is a column word, or a multi-word column phrase made
+        // only of column words ("Plugin Name" from a hand-made audit sheet;
+        // "Site Name" or "Author Name" is a different column entirely)
+        const columnPhrase = (f) => /\s/.test(f) && f.split(/\s+/).every(w => COLUMN_NAMES.has(w) || w === "by");
+        const headerish = (f) => HEADER_NAMES.has(f) || columnPhrase(f);
         if (lower.some(headerish)) {
-          // header row: remember which column names the plugin, consume the row
-          const idx = lower.findIndex(f =>
-            ["slug", "plugin", "name", "title"].some(k => f === k || (/\s/.test(f) && f.split(/\s+/).includes(k))));
+          // header row: pick the plugin column by key priority, exact
+          // matches before column phrases, so an exact "Slug"/"Plugin"
+          // column beats an earlier "... Name" phrase
+          let idx = -1;
+          for (const k of ["slug", "plugin", "name", "title"]) {
+            const i = lower.indexOf(k);
+            if (i !== -1) { idx = i; break; }
+          }
+          if (idx === -1) {
+            for (const k of ["slug", "plugin", "name", "title"]) {
+              const i = lower.findIndex(f => columnPhrase(f) && f.split(/\s+/).includes(k));
+              if (i !== -1) { idx = i; break; }
+            }
+          }
           csvSlugColumn = idx !== -1 ? idx : 0;
           csvFieldCount = fields.length;
           continue;
@@ -320,8 +383,9 @@ export function parseSlugsDetailed(input) {
         }
       }
     } else if (!json) {
-      // a line of space-separated slugs (ls output, one-line lists)
-      const listed = slugListTokens(raw);
+      // a line of space-separated slugs (ls output, one-line lists),
+      // possibly behind a checklist marker or quote prefix
+      const listed = slugListTokens(stripLineDecorations(raw.trim()));
       if (listed) { items = listed; expanded = true; }
     }
     let found = 0;
