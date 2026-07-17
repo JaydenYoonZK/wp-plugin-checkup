@@ -3,6 +3,14 @@
 All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.3.12] - 2026-07-17
+
+A twelfth adversarial round replayed the failed personas (clean) and found one last seam.
+
+### Fixed
+
+- A bare tree or find operand line ("plugins" with no slash, printed verbatim as the first line of `tree plugins` or `find plugins` run from inside wp-content) no longer resolves as the real directory plugin named "Plugins", whose abandoned-since-2017 verdict sorted to the top of the report looking like an indictment of the user's own plugins directory. The operand is framing when a listing follows it; a deliberate lone paste of "plugins" still resolves. The index.php stub inside tree glyphs and tree's "N directories, N files" trailer stay out of the skip note.
+
 ## [1.3.11] - 2026-07-17
 
 An eleventh adversarial round walked eight admin personas end to end (six clean) and closed the two gaps it found.
@@ -624,6 +632,7 @@ First stable release.
 - Dependency-free ES module engine (docs/checkup.js) with 13 Node tests.
 - Browser UI in the shared suite design with light and dark themes and a ?demo deep link.
 
+[1.3.12]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.12
 [1.3.11]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.11
 [1.3.10]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.10
 [1.3.9]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.9

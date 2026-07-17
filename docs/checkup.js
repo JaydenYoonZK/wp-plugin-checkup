@@ -382,7 +382,7 @@ function isStructuralLine(line) {
   // version" from a borderless or tab-separated table)
   const words = s.toLowerCase().split(/[\s,]+/).filter(Boolean);
   if (words.length === 1 && HEADER_NAMES.has(words[0])) return true;
-  if (words.length === 1 && FILE_ALIASES.get(words[0]) === null) return true;
+  if (words.length === 1 && FILE_ALIASES.get(words[0].replace(/\.php$/i, "")) === null) return true;
   if (words.length === 1 && CORE_CRON_WORDS.has(words[0])) return true;
   if (words.length >= 2 && words.every(w => CORE_CRON_WORDS.has(w))) return true;
   // a lone underscore compound of column words is a db/table heading
@@ -400,6 +400,8 @@ function isStructuralLine(line) {
   if (/^(?:by|view|visit)\s+\S/i.test(s)) return true;
   // Markdown code fences around a pasted debug report
   if (/^`+$/.test(s)) return true;
+  // tree(1) summary trailer, whole or comma-split
+  if (/^\d+\s+(?:director(?:y|ies)|files?)(?:,\s*\d+\s+files?)?,?$/i.test(s)) return true;
   // the root line of a find/tree listing: a path ENDING at a WordPress
   // directory is framing, its entries carry the plugins (a plugins/x
   // capture means x IS the plugin, even if x is "uploads")
@@ -444,13 +446,23 @@ export function parseSlugsDetailed(input) {
     return SLUG_RE.test(w) && !/^\d+$/.test(w) &&
       !UI_FRAMING_WORDS.has(w) && !isColumnLabel(w) && !VERSION_TOKEN_RE.test(cell);
   };
-  for (const line of lines) {
-    const raw = String(line);
+  for (let li = 0; li < lines.length; li++) {
+    const raw = String(lines[li]);
     // a blank line ends a table block; what follows is a fresh paste section
     if (!json && !raw.trim()) {
       csvSlugColumn = null; csvFieldCount = 0; csvAssoc = false; csvNoIdentity = false;
       pipeSlugColumn = null; pipeCellCount = 0; pipeAssoc = false; pipeNoIdentity = false;
       continue;
+    }
+    // tree(1) and find(1) print their operand verbatim first; a bare
+    // "plugins" heading a listing block is that root line, not the real
+    // (abandoned) directory plugin named "Plugins". A lone paste with no
+    // listing beneath it still resolves as a deliberate slug.
+    if (!json && /^(?:wp-content|plugins|mu-plugins|themes|uploads)$/i.test(raw.trim())) {
+      const next = String(lines[li + 1] ?? "").trim();
+      if (/^[\u2500-\u257f]/.test(next) || next.toLowerCase().startsWith(raw.trim().toLowerCase() + "/")) {
+        continue;
+      }
     }
     let items = [raw];
     let expanded = false; // items are fragments of the line, reported per item

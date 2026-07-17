@@ -900,3 +900,20 @@ test("prose-bearing comma lines report whole instead of leaking name fragments",
   // hand-typed capitalized comma LISTS still resolve
   assert.deepEqual(parseSlugs("Akismet, Jetpack, Wordfence"), ["akismet", "jetpack", "wordfence"]);
 });
+
+
+/* --------- regression from the twelfth adversarial round (v1.3.12) --------- */
+
+test("bare tree/find operands head their listing, they are not the Plugins plugin", () => {
+  // `tree plugins` from inside wp-content prints its operand first; the
+  // real directory plugin "plugins" (abandoned since 2017) must not lead
+  // the report because of it
+  const tree = parseSlugsDetailed("plugins\n├── akismet\n├── hello.php\n├── index.php\n└── wordpress-seo\n\n3 directories, 2 files");
+  assert.deepEqual(tree.slugs, ["akismet", "hello-dolly", "wordpress-seo"]);
+  assert.deepEqual(tree.skipped, []);
+  const found = parseSlugsDetailed("plugins\nplugins/akismet\nplugins/wordpress-seo");
+  assert.deepEqual(found.slugs, ["akismet", "wordpress-seo"]);
+  assert.deepEqual(found.skipped, []);
+  // a deliberate lone paste of "plugins" still resolves the real slug
+  assert.deepEqual(parseSlugs("plugins"), ["plugins"]);
+});
