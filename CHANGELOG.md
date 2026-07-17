@@ -5,8 +5,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [1.3.18] - 2026-07-17
 
-A final comprehensive gate replayed the whole corpus and confirmed the engine complete; this ships the last two over-corrections it and self-review surfaced, and freezes the filesystem-listing family.
-
 ### Fixed
 
 - A plugin's own config files no longer mis-release the ls -R section latch. The command-word check matched composer.json and wp-cli.yml (ubiquitous inside modern plugins) because it ended on a word boundary; it now requires the command word to be followed by whitespace or end of line, so a recursive ls -R that descends into such a plugin stops leaking its internal directory names as phantom verdicts.
@@ -14,16 +12,12 @@ A final comprehensive gate replayed the whole corpus and confirmed the engine co
 
 ## [1.3.17] - 2026-07-17
 
-A seventeenth adversarial round attacked the listing latch with authentic OS prompts and real command trees.
-
 ### Fixed
 
 - Real shell prompts release the ls -R section latch. The previous rule recognized only a bare "$ " prompt, which no OS actually renders, so a compound paste (ls -R of a plugin's internals, then a plugin-list command under a real prompt like ubuntu@host:/var/www/html$) silently dropped the whole plugin list. The latch now releases on any genuine command evidence: a path argument, a flag, a user@host prefix, an oh-my-zsh or starship glyph, a shell sigil, or a command word, in every OS default form. Odd filenames ("Font Awesome", "edit form.php") still stay consumed, so nothing leaks.
 - tree -F and path-form roots keep a plugin slugged like a core directory. "tree -F plugins" prints "plugins/" and "uploads/" with trailing slashes, and "tree wp-content/plugins" prints a path operand; neither matched the bare-"plugins" root rule, so a real plugin genuinely slugged "uploads" was silently dropped. The plugins-root latch now recognizes the operand in any tool form, and the trailing slash on an in-plugins entry is stripped before it resolves.
 
 ## [1.3.16] - 2026-07-17
-
-A sixteenth adversarial round replayed the full corpus at the shipped version (clean) and probed the fifteenth's own fixes.
 
 ### Fixed
 
@@ -33,8 +27,6 @@ A sixteenth adversarial round replayed the full corpus at the shipped version (c
 - Prose ending in "path:" is not a section header (headers with spaces must be absolute paths, like Local by Flywheel's), so a sentence cannot silently swallow the lines after it.
 
 ## [1.3.15] - 2026-07-17
-
-A fifteenth adversarial round attacked with real fixtures at real paths and finished the listing family.
 
 ### Fixed
 
@@ -46,8 +38,6 @@ A fifteenth adversarial round attacked with real fixtures at real paths and fini
 
 ## [1.3.14] - 2026-07-17
 
-A fourteenth adversarial round built a real wp-content with a real Akismet and ran the real commands.
-
 ### Fixed
 
 - The core directory vocabulary is complete: languages/ and upgrade/ (and 6.3's upgrade-temp-backup/) exist on real installs and no longer mint "Not in the directory" rows from tree or find listings; core directory tree nodes are structure whether they have children or not, while entries inside the plugins subtree always count as plugins.
@@ -57,8 +47,6 @@ A fourteenth adversarial round built a real wp-content with a real Akismet and r
 
 ## [1.3.13] - 2026-07-17
 
-A thirteenth adversarial round replayed all forty-three canonical pastes (clean) and finished the tree and terminal-copy family.
-
 ### Fixed
 
 - A one-line JSON array behind a preamble (the copied command line, a PHP notice on stdout) parses every plugin instead of silently keeping the first: whole-input JSON already failed, so the array line itself is parsed now.
@@ -67,15 +55,11 @@ A thirteenth adversarial round replayed all forty-three canonical pastes (clean)
 
 ## [1.3.12] - 2026-07-17
 
-A twelfth adversarial round replayed the failed personas (clean) and found one last seam.
-
 ### Fixed
 
 - A bare tree or find operand line ("plugins" with no slash, printed verbatim as the first line of `tree plugins` or `find plugins` run from inside wp-content) no longer resolves as the real directory plugin named "Plugins", whose abandoned-since-2017 verdict sorted to the top of the report looking like an indictment of the user's own plugins directory. The operand is framing when a listing follows it; a deliberate lone paste of "plugins" still resolves. The index.php stub inside tree glyphs and tree's "N directories, N files" trailer stay out of the skip note.
 
 ## [1.3.11] - 2026-07-17
-
-An eleventh adversarial round walked eight admin personas end to end (six clean) and closed the two gaps it found.
 
 ### Fixed
 
@@ -84,16 +68,12 @@ An eleventh adversarial round walked eight admin personas end to end (six clean)
 
 ## [1.3.10] - 2026-07-17
 
-A tenth adversarial round replayed every canonical paste from the previous nine (all clean) and finished the wp cron family.
-
 ### Fixed
 
 - wp cron schedule list stopped minting its schedule names as plugins across csv, json, and yaml: the name/display/interval field set marks a schedule table, whose name column is suppressed like other identity-less headers, and schedule objects are recognized by shape in JSON.
 - wp cron event list --format=ids and --field=hook output is scheduler vocabulary: the core hooks WordPress registers on every install (wp_version_check and friends, none a live plugin) are framing, while a plugin's own hooks riding along stay visible.
 
 ## [1.3.9] - 2026-07-17
-
-A ninth adversarial round covered developer manifests and scheduler screens, and caught the eighth round's root-line rule over-reaching.
 
 ### Fixed
 
@@ -105,8 +85,6 @@ A ninth adversarial round covered developer manifests and scheduler screens, and
 
 ## [1.3.8] - 2026-07-17
 
-An eighth adversarial round swept the remaining filesystem and search screens.
-
 ### Fixed
 
 - find and tree listings no longer mint a phantom from their root line: a path that ends at a WordPress directory ("wp-content/plugins", "/var/www/html/wp-content/plugins") is framing, and tree's branch glyphs are stripped so its entries parse.
@@ -116,8 +94,6 @@ An eighth adversarial round swept the remaining filesystem and search screens.
 - A header naming no plugin column ("Author Name,Version") marks its rows as reported instead of guessing at their cells; compound column labels count as the plugin column only when built purely of identity words, so "Author Name" can never outrank an exact "Plugin" column.
 
 ## [1.3.7] - 2026-07-17
-
-A seventh adversarial round went after the database-facing screens and the checksum formats.
 
 ### Fixed
 
@@ -131,8 +107,6 @@ A seventh adversarial round went after the database-facing screens and the check
 
 ## [1.3.6] - 2026-07-17
 
-A sixth adversarial round reconstructed the Site Health debug copy from WordPress core source and probed the assoc-table fix, and both attacks landed.
-
 ### Fixed
 
 - The Site Health debug copy (Tools, Site Health, Info, "Copy site info to clipboard": the most-shared diagnostic text in WordPress support) no longer mints phantom verdicts. Its theme_features, gd_formats, and imagemagick_file_formats lines are comma lists of feature and format names that were split as CSV, producing four to two hundred fifty phantom rows per paste; "post-thumbnails" is even a real closed directory plugin, so the report led with a false closure verdict for a theme feature. A non-identity "key: a, b, c" line is now metadata, never CSV. Markdown code fences around pasted reports stay silent, and plugin names from the wp-plugins-active section are reported for the user as before.
@@ -140,8 +114,6 @@ A sixth adversarial round reconstructed the Site Health debug copy from WordPres
 - A row pasted directly after a wp plugin get block is no longer eaten as table metadata: an unknown key ends the assoc block. Site Health's per-plugin "Auto-updates enabled/disabled" trailers stay out of the skip note.
 
 ## [1.3.5] - 2026-07-17
-
-A fifth adversarial round reconstructed real WP-CLI screens verbatim and caught the parser misreading two of them.
 
 ### Fixed
 
@@ -152,8 +124,6 @@ A fifth adversarial round reconstructed real WP-CLI screens verbatim and caught 
 
 ## [1.3.4] - 2026-07-17
 
-A fourth adversarial round went after the seams between the parser's format branches and the pastes of working sysadmins. Two of its finds mattered a lot.
-
 ### Fixed
 
 - Piped display names no longer resolve their first word. Seven of the top 250 plugins carry " | " in their display name (OMGF, iubenda, and friends), and the first word is not the slug, so a wp-admin copy produced a false "Not in the directory" row for a healthy plugin. A lone slug-shaped pipe cell is now trusted only when its sibling cells are table furniture; otherwise the line is reported as skipped.
@@ -163,8 +133,6 @@ A fourth adversarial round went after the seams between the parser's format bran
 - Framing stays out of the skip note: email-quoted table borders from a forwarded wp plugin list, blank quote lines, lone version fragments of soft-wrapped rows, and a stale pipe-table column now either parse correctly or stay silent instead of surfacing as "not recognized" noise.
 
 ## [1.3.3] - 2026-07-17
-
-A third adversarial round attacked the parser with the pastes real admins actually produce, and won a few more times. Every win was a phantom verdict: "update" and "seo" are real closed directory plugins, so a mis-read header or filler word rendered as a genuine-looking closure row.
 
 ### Fixed
 
@@ -177,8 +145,6 @@ A third adversarial round attacked the parser with the pastes real admins actual
 - CR-only line endings (Excel's "CSV (Macintosh)" export) parse like any other; previously the whole paste collapsed into one line and leaked status fields as slugs.
 
 ## [1.3.2] - 2026-07-17
-
-A post-release adversarial verification round caught edge cases the 1.3.0 parser rewrite introduced, each one a phantom row waiting to happen. "update", "version", "seo", and "composer" are all real directory slugs (some closed), so a mis-read header or key could top the report with closure verdicts for plugins the user never pasted.
 
 ### Fixed
 
@@ -198,8 +164,6 @@ A post-release adversarial verification round caught edge cases the 1.3.0 parser
 - The test runner is invoked with explicit file paths instead of a shell glob. PowerShell does not expand globs and Node 20's test runner does not either, so the 1.3.0 suite could not start on Windows CI while every other platform expanded the pattern in bash first.
 
 ## [1.3.0] - 2026-07-17
-
-A deep quality pass from an adversarial review. The headline fixes stop the two ways this tool could assert a wrong verdict.
 
 ### Fixed
 
