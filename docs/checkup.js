@@ -123,9 +123,22 @@ const STOP_WORDS = new Set(["and", "or", "the", "with", "w", "plus", "also", "th
  *  "- name:" item survives because the yaml pattern tolerates a missing dash. */
 function stripLineDecorations(s) {
   return s.replace(/^(?:>\s*)+/, "")
-    .replace(/^[\u2500-\u257f]+\s+/, "") // tree(1) branch glyphs
+    .replace(/^(?:[\u2500-\u257f]+\s+)+/, "") // tree(1) glyphs, any depth
+    .replace(/^(?:[|`+]-{1,2}\s+)/, "")         // tree(1) ASCII connectors
     .replace(/^(?:[-*+•]|\d+[.)])\s+/, "");
 }
+
+/** A tree(1) branch line in either charset: UTF-8 box glyphs or the ASCII
+ *  connectors of a POSIX/C locale. Returns { prefix, content } or null. */
+function parseTreeLine(s) {
+  const utf = /^((?:[\u2502\s]*)(?:[\u251c\u2514])\u2500*\s+)(.+)$/.exec(s);
+  if (utf) return { prefix: utf[1].length, content: utf[2] };
+  const ascii = /^((?:[|\s]*)(?:[|`+])-{1,2}\s+)(.+)$/.exec(s);
+  if (ascii) return { prefix: ascii[1].length, content: ascii[2] };
+  return null;
+}
+const TREE_TRAILER_RE = /^\d+\s+director(?:y|ies),?\s*\d+\s+files?$/i;
+const WP_DIR_WORD_RE = /^(?:wp-content|plugins|mu-plugins|themes|uploads)$/i;
 
 /** A line of space-separated slugs (ls output of wp-content/plugins, a
  *  hand-typed one-liner). Three discriminators keep prose and table headers
@@ -402,6 +415,8 @@ function isStructuralLine(line) {
   if (/^`+$/.test(s)) return true;
   // tree(1) summary trailer, whole or comma-split
   if (/^\d+\s+(?:director(?:y|ies)|files?)(?:,\s*\d+\s+files?)?,?$/i.test(s)) return true;
+  // the silence-is-golden stub inside a plugins path listing
+  if (/(?:^|[\s/])(?:wp-content\/)?plugins\/index\.php\/?$/i.test(s)) return true;
   // the root line of a find/tree listing: a path ENDING at a WordPress
   // directory is framing, its entries carry the plugins (a plugins/x
   // capture means x IS the plugin, even if x is "uploads")
@@ -439,6 +454,7 @@ export function parseSlugsDetailed(input) {
   let pipeCellCount = 0;
   let pipeAssoc = false;
   let pipeNoIdentity = false;
+  let treeSkipPrefix = null; // depth of a themes/uploads subtree being skipped
   // a slug candidate that stands alone in a cell: not row furniture, not a
   // bare number, not a column label
   const soloSlug = (cell) => {
@@ -452,20 +468,51 @@ export function parseSlugsDetailed(input) {
     if (!json && !raw.trim()) {
       csvSlugColumn = null; csvFieldCount = 0; csvAssoc = false; csvNoIdentity = false;
       pipeSlugColumn = null; pipeCellCount = 0; pipeAssoc = false; pipeNoIdentity = false;
+      treeSkipPrefix = null;
       continue;
     }
     // tree(1) and find(1) print their operand verbatim first; a bare
     // "plugins" heading a listing block is that root line, not the real
     // (abandoned) directory plugin named "Plugins". A lone paste with no
     // listing beneath it still resolves as a deliberate slug.
-    if (!json && /^(?:wp-content|plugins|mu-plugins|themes|uploads)$/i.test(raw.trim())) {
+    if (!json && WP_DIR_WORD_RE.test(raw.trim())) {
       const next = String(lines[li + 1] ?? "").trim();
-      if (/^[\u2500-\u257f]/.test(next) || next.toLowerCase().startsWith(raw.trim().toLowerCase() + "/")) {
+      const afterBlank = String(lines[li + 2] ?? "").trim();
+      if (parseTreeLine(next) || next.toLowerCase().startsWith(raw.trim().toLowerCase() + "/") ||
+          (!next && TREE_TRAILER_RE.test(afterBlank))) {
         continue;
       }
     }
     let items = [raw];
     let expanded = false; // items are fragments of the line, reported per item
+    // tree(1) branch lines, either charset: directory nodes are structure,
+    // and the children of a themes/uploads subtree are not plugins
+    const tl = !json ? parseTreeLine(raw) : null;
+    if (tl) {
+      expanded = true;
+      if (treeSkipPrefix !== null && tl.prefix > treeSkipPrefix) {
+        items = [];
+      } else {
+        treeSkipPrefix = null;
+        const word = tl.content.trim().toLowerCase().replace(/\/+$/, "");
+        const nextTree = parseTreeLine(String(lines[li + 1] ?? ""));
+        if (WP_DIR_WORD_RE.test(word) && nextTree && nextTree.prefix > tl.prefix) {
+          // a directory node heading its own subtree
+          if (word !== "plugins" && word !== "mu-plugins") treeSkipPrefix = tl.prefix;
+          items = [];
+        } else {
+          items = [tl.content];
+        }
+      }
+    } else if (!json && raw.trim()) {
+      treeSkipPrefix = null;
+    }
+    // a one-line JSON array behind a preamble (a copied command line, a PHP
+    // notice): whole-input JSON already failed, so parse the array line
+    if (!tl && !json && raw.trim().startsWith("[")) {
+      const lineJson = jsonSlugs(raw.trim());
+      if (lineJson) { items = lineJson.map(String); expanded = true; }
+    }
     // a one-line wp-env manifest member carries the plugin list itself:
     // {"plugins": [ "WordPress/gutenberg#trunk", "akismet" ]}
     const inlineArray = !json && /"plugins"\s*:\s*\[([^\]]*)/.exec(raw);
@@ -481,7 +528,9 @@ export function parseSlugsDetailed(input) {
     const metaKeyList = /^-?\s*[a-z_]+:(\s|$)/.test(raw.trim());
     const csvish = raw.includes(",") && !hasJsonMember(raw) && !metaKeyList &&
       (!raw.includes("|") || csvSlugColumn !== null || raw.includes('"'));
-    if (inlineArray) {
+    if (tl || (expanded && items !== null && !inlineArray && raw.trim().startsWith("["))) {
+      // items were expanded above (tree branch line or JSON array line)
+    } else if (inlineArray) {
       // items were expanded above
     } else if (!json && !csvish && raw.includes("|") && !hasJsonMember(raw) && !/^[+|:\-\s]+$/.test(raw.trim())) {
       // pipe-table row (wp-cli table, Markdown): track the header's plugin

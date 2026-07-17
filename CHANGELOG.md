@@ -3,6 +3,16 @@
 All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.3.13] - 2026-07-17
+
+A thirteenth adversarial round replayed all forty-three canonical pastes (clean) and finished the tree and terminal-copy family.
+
+### Fixed
+
+- A one-line JSON array behind a preamble (the copied command line, a PHP notice on stdout) parses every plugin instead of silently keeping the first: whole-input JSON already failed, so the array line itself is parsed now.
+- tree output parses in both charsets and at any depth: the ASCII connectors of a POSIX/C locale session (the norm on shared-hosting SSH) work like the UTF-8 glyphs, nested listings strip their full prefix, directory nodes heading a subtree are structure, the plugins subtree parses (including a plugin genuinely slugged "uploads"), the themes and uploads subtrees stay silent, and an empty directory's operand line is framing thanks to its own trailer.
+- A find listing keeps the stock index.php stub out of the skip note.
+
 ## [1.3.12] - 2026-07-17
 
 A twelfth adversarial round replayed the failed personas (clean) and found one last seam.
@@ -632,6 +642,7 @@ First stable release.
 - Dependency-free ES module engine (docs/checkup.js) with 13 Node tests.
 - Browser UI in the shared suite design with light and dark themes and a ?demo deep link.
 
+[1.3.13]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.13
 [1.3.12]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.12
 [1.3.11]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.11
 [1.3.10]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.10

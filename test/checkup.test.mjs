@@ -917,3 +917,32 @@ test("bare tree/find operands head their listing, they are not the Plugins plugi
   // a deliberate lone paste of "plugins" still resolves the real slug
   assert.deepEqual(parseSlugs("plugins"), ["plugins"]);
 });
+
+
+/* ------- regressions from the thirteenth adversarial round (v1.3.13) ------- */
+
+test("a JSON array line behind a preamble parses every plugin", () => {
+  // copying the command with its output is how terminals get copied
+  const echoed = parseSlugsDetailed('wp plugin list --format=json\n[{"name":"akismet","status":"active"},{"name":"jetpack","status":"active"},{"name":"wordfence","status":"inactive"}]');
+  assert.deepEqual(echoed.slugs, ["akismet", "jetpack", "wordfence"]);
+  // a PHP notice on stdout must not swallow the list either
+  const noticed = parseSlugsDetailed('PHP Deprecated: x in /var/www/html/wp-content/plugins/wp-fastest-cache/wpFastestCache.php on line 84\n[{"name":"akismet"},{"name":"jetpack"}]');
+  assert.deepEqual(noticed.slugs, ["wp-fastest-cache", "akismet", "jetpack"]);
+});
+
+test("tree output parses in both charsets, at any depth, for any root", () => {
+  // POSIX/C locale tree draws ASCII connectors
+  const ascii = parseSlugsDetailed("plugins\n|-- akismet\n|-- hello.php\n|-- index.php\n`-- wordpress-seo\n\n3 directories, 2 files");
+  assert.deepEqual(ascii.slugs, ["akismet", "hello-dolly", "wordpress-seo"]);
+  assert.deepEqual(ascii.skipped, []);
+  // an empty directory still silences its operand line
+  assert.deepEqual(parseSlugsDetailed("plugins\n\n0 directories, 0 files").slugs, []);
+  // tree wp-content: directory nodes are structure, the plugins subtree
+  // parses (including a plugin genuinely slugged "uploads"), and the
+  // themes/uploads subtrees stay silent
+  const wc = parseSlugsDetailed("wp-content\n├── index.php\n├── plugins\n│   ├── akismet\n│   ├── uploads\n│   └── wordpress-seo\n├── themes\n│   └── twentytwentyfive\n└── uploads\n    └── 2026\n\n11 directories, 4 files");
+  assert.deepEqual(wc.slugs, ["akismet", "uploads", "wordpress-seo"]);
+  assert.deepEqual(wc.skipped, []);
+  // a find listing keeps its index.php stub out of the skip note
+  assert.deepEqual(parseSlugsDetailed("wp-content/plugins\nwp-content/plugins/akismet\nwp-content/plugins/index.php").skipped, []);
+});
