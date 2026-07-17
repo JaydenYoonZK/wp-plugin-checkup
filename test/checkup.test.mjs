@@ -1063,3 +1063,45 @@ test("ls -l stub rows and translation sections stay out of the skip note", () =>
   assert.deepEqual(lsr.slugs, ["akismet"]);
   assert.deepEqual(lsr.skipped, []);
 });
+
+
+/* ----- regressions from the seventeenth adversarial round (v1.3.17) ----- */
+
+test("real shell prompts release the ls -R latch (no silent drop)", () => {
+  // an ubuntu@host:/path$ prompt is a command line, not a filename entry
+  const ubuntu = [
+    "ubuntu@web-01:/var/www/html$ ls -R wp-content/plugins/akismet",
+    "wp-content/plugins/akismet:",
+    "akismet.php",
+    "views",
+    "",
+    "wp-content/plugins/akismet/views:",
+    "config.php",
+    "",
+    "ubuntu@web-01:/var/www/html$ wp plugin list --field=name",
+    "akismet",
+    "contact-form-7",
+    "woocommerce",
+    "wordpress-seo"
+  ].join("\n");
+  assert.deepEqual(parseSlugsDetailed(ubuntu).slugs, ["akismet", "contact-form-7", "woocommerce", "wordpress-seo"]);
+  // macOS % and oh-my-zsh glyph prompts release too; commands with a path or
+  // flag but no known command word still release (Bedrock ./vendor/bin/wp)
+  assert.deepEqual(parseSlugs("plugins/akismet:\nakismet.php\nviews\njay@mac plugins % wp plugin list --field=name\njetpack\nwordfence"), ["jetpack", "wordfence"]);
+  assert.deepEqual(parseSlugs("plugins/akismet:\nakismet.php\nviews\n./vendor/bin/wp plugin list --field=name\njetpack"), ["jetpack"]);
+  // odd filenames still stay consumed, no leak
+  assert.deepEqual(parseSlugsDetailed("plugins/x/assets:\nFont Awesome\nshortcodes").slugs, []);
+});
+
+test("tree -F and path-form roots keep a plugin slugged like a core directory", () => {
+  // tree -F prints "plugins/" and "uploads/" with trailing slashes; the
+  // plugins root means every entry is a plugin, including one named "uploads"
+  const treeF = parseSlugsDetailed("plugins/\n|-- akismet/\n|-- hello.php\n|-- uploads/\n`-- wordpress-seo/");
+  assert.deepEqual(treeF.slugs, ["akismet", "hello-dolly", "uploads", "wordpress-seo"]);
+  assert.deepEqual(treeF.skipped, []);
+  assert.deepEqual(parseSlugs("wp-content/plugins\n├── akismet\n├── uploads\n└── wordpress-seo"), ["akismet", "uploads", "wordpress-seo"]);
+  // a full-depth tree -F still silences each plugin's internals
+  assert.deepEqual(parseSlugs("plugins/\n├── akismet/\n│   ├── akismet.php\n│   └── views/\n└── wordpress-seo/"), ["akismet", "wordpress-seo"]);
+  // tree -F of wp-content: top-level uploads/ subtree stays structure
+  assert.deepEqual(parseSlugs("wp-content/\n|-- plugins/\n|   |-- akismet/\n|   `-- uploads/\n|-- themes/\n|   `-- twentytwentyfive/\n`-- uploads/\n    `-- 2026/"), ["akismet", "uploads"]);
+});

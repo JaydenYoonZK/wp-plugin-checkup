@@ -140,6 +140,31 @@ function parseTreeLine(s) {
 const TREE_TRAILER_RE = /^\d+\s+director(?:y|ies),?\s*\d+\s+files?$/i;
 const WP_DIR_WORD_RE = /^(?:wp-content|plugins|mu-plugins|themes|uploads|languages|upgrade|upgrade-temp-backup)$/i;
 
+// The last path segment of an operand ("wp-content/plugins/" -> "plugins").
+const lastSeg = (s) => s.replace(/\/+$/, "").split("/").pop() || "";
+// A tree(1)/find(1) root operand naming a WordPress directory, in any form
+// the tools print: bare ("plugins"), -F trailing slash ("plugins/"), or a
+// path ("wp-content/plugins", "/var/www/.../plugins").
+const isCoreDirOperand = (s) => WP_DIR_WORD_RE.test(lastSeg(s.trim()));
+const isPluginsRootWord = (s) => /^(?:mu-)?plugins$/i.test(lastSeg(s.trim()));
+
+// A shell command or prompt line, distinguished from an ls -R filename
+// entry, which is always a BARE name (no path separator, no flag, no
+// prompt furniture). Used to release the section-skip latch on genuinely
+// new context without releasing on odd filenames ("Font Awesome").
+function looksLikeCommandLine(t) {
+  const bare = t.replace(/^[➜❯▶λ]\s*/, "");
+  return (
+    /\S\/\S/.test(t) ||                                  // a path argument (entries never have "/")
+    /(?:^|\s)(?:-{1,2}[A-Za-z]|\/[A-Za-z])(?=$|[\s=])/.test(t) || // a -flag / --flag / /flag
+    /[\w.-]+@[\w.-]+/.test(t) ||                          // a user@host prompt prefix
+    /^\s*[➜❯▶λ]/.test(t) ||                               // oh-my-zsh / starship glyph
+    /(?:^|\S)[$#>]\s+\S/.test(t) ||                       // a $ / # / > sigil then a command
+    /\s%\s+\S/.test(t) ||                                 // a zsh % prompt
+    /^(?:sudo\s+)?(?:wp|wp-cli|ls|ll|la|dir|exa|eza|lsd|find|fd|tree|cd|cat|bat|grep|rg|ag|php|composer|git|npm|npx|pnpm|yarn|du|df|rsync|scp|echo|pwd|which|whoami|stat)\b/i.test(bare)
+  );
+}
+
 /** A line of space-separated slugs (ls output of wp-content/plugins, a
  *  hand-typed one-liner). Three discriminators keep prose and table headers
  *  out, because every rejected line is reported while every accepted token
@@ -508,16 +533,24 @@ export function parseSlugsDetailed(input) {
     // "plugins" heading a listing block is that root line, not the real
     // (abandoned) directory plugin named "Plugins". A lone paste with no
     // listing beneath it still resolves as a deliberate slug.
-    if (!json && WP_DIR_WORD_RE.test(raw.trim())) {
+    if (!json && isCoreDirOperand(raw.trim())) {
+      const op = raw.trim().replace(/\/+$/, "");
+      const seg = lastSeg(op).toLowerCase();
       const next = String(lines[li + 1] ?? "").trim();
       const prev = String(lines[li - 1] ?? "").trim();
       const afterBlank = String(lines[li + 2] ?? "").trim();
       const dirRunWord = (w) => WP_DIR_WORD_RE.test(w) || /^index\.php$/i.test(w);
-      if (parseTreeLine(next) || next.toLowerCase().startsWith(raw.trim().toLowerCase() + "/") ||
+      // a listing follows this operand: a tree branch, a child path under
+      // it (bare-word or path form), the tree trailer, or (for a bare
+      // wp-content listing) a run of directory words
+      if (parseTreeLine(next) ||
+          next.toLowerCase().startsWith(op.toLowerCase() + "/") ||
+          next.toLowerCase().startsWith(seg + "/") ||
           (!next && TREE_TRAILER_RE.test(afterBlank)) ||
-          // a run of bare directory words is an ls of wp-content itself
           dirRunWord(next) || dirRunWord(prev)) {
-        if (/^(?:mu-)?plugins$/i.test(raw.trim())) treePluginsPrefix = -1;
+        // a plugins root ("plugins", "plugins/", "wp-content/plugins")
+        // means every entry beneath it is a plugin
+        if (isPluginsRootWord(op)) treePluginsPrefix = -1;
         continue;
       }
     }
@@ -536,16 +569,14 @@ export function parseSlugsDetailed(input) {
       continue;
     }
     if (lsSectionSkip && raw.trim()) {
-      // filenames and prompts are indistinguishable by shape ("Font
-      // Awesome" vs "$ wp plugin list"), so the latch releases only on
-      // POSITIVE evidence of a new context: a shell prompt or a command
-      // word. Everything else in the section is a file.
-      const t = raw.trim();
-      if (/^(?:[$%>]\s|(?:sudo\s+)?(?:wp|ls|find|tree|cd|cat|grep|php|composer)\s)/.test(t)) {
-        lsSectionSkip = false;
-      } else {
-        continue;
-      }
+      // A section entry is a BARE filename (no path, no flag, no prompt
+      // furniture); a real shell prompt or command carries at least one of
+      // those, in any OS default form (ubuntu@host:/path$ cmd, macOS % cmd,
+      // oh-my-zsh ➜). Release the latch only on that positive evidence, so
+      // odd filenames ("Font Awesome", "edit form.php") stay consumed but a
+      // following command's plugin list is never silently dropped.
+      if (looksLikeCommandLine(raw.trim())) lsSectionSkip = false;
+      else continue;
     }
     // tree(1) branch lines, either charset: directory nodes are structure,
     // and the children of a themes/uploads subtree are not plugins
@@ -567,7 +598,10 @@ export function parseSlugsDetailed(input) {
           else if (nextTree && nextTree.prefix > tl.prefix) treeSkipPrefix = tl.prefix;
           items = [];
         } else {
-          items = [tl.content];
+          // strip a tree -F / -p trailing slash: "uploads/" inside the
+          // plugins subtree IS the plugin, but the bare-dir framing rule in
+          // slugFromLine would null a dir-word carrying a slash
+          items = [tl.content.replace(/\/+$/, "")];
           // a full-depth tree descends INTO each plugin; the children are
           // the plugin's own files and folders, not more plugins
           if (nextTree && nextTree.prefix > tl.prefix) treeSkipPrefix = tl.prefix;

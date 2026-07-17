@@ -3,6 +3,15 @@
 All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.3.17] - 2026-07-17
+
+A seventeenth adversarial round attacked the listing latch with authentic OS prompts and real command trees.
+
+### Fixed
+
+- Real shell prompts release the ls -R section latch. The previous rule recognized only a bare "$ " prompt, which no OS actually renders, so a compound paste (ls -R of a plugin's internals, then a plugin-list command under a real prompt like ubuntu@host:/var/www/html$) silently dropped the whole plugin list. The latch now releases on any genuine command evidence: a path argument, a flag, a user@host prefix, an oh-my-zsh or starship glyph, a shell sigil, or a command word, in every OS default form. Odd filenames ("Font Awesome", "edit form.php") still stay consumed, so nothing leaks.
+- tree -F and path-form roots keep a plugin slugged like a core directory. "tree -F plugins" prints "plugins/" and "uploads/" with trailing slashes, and "tree wp-content/plugins" prints a path operand; neither matched the bare-"plugins" root rule, so a real plugin genuinely slugged "uploads" was silently dropped. The plugins-root latch now recognizes the operand in any tool form, and the trailing slash on an in-plugins entry is stripped before it resolves.
+
 ## [1.3.16] - 2026-07-17
 
 A sixteenth adversarial round replayed the full corpus at the shipped version (clean) and probed the fifteenth's own fixes.
@@ -676,6 +685,7 @@ First stable release.
 - Dependency-free ES module engine (docs/checkup.js) with 13 Node tests.
 - Browser UI in the shared suite design with light and dark themes and a ?demo deep link.
 
+[1.3.17]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.17
 [1.3.16]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.16
 [1.3.15]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.15
 [1.3.14]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.14
