@@ -31,7 +31,8 @@ const COLUMN_NAMES = new Set([
   "field", "value", "author", "message", "option", "autoload", "id",
   // wp cron event list and wp site list headers
   "hook", "recurrence", "schedule", "next_run", "next_run_gmt",
-  "next_run_relative", "blog_id", "site_id", "url", "domain", "registered", "public"
+  "next_run_relative", "blog_id", "site_id", "url", "domain", "registered", "public",
+  "display", "interval"
 ]);
 // The metadata keys a wp plugin get assoc table can print. A 2-cell row
 // whose key is none of these ends the assoc block: it belongs to whatever
@@ -81,6 +82,21 @@ function slugColumnIndex(lower) {
   }
   return -1;
 }
+// wp cron output vocabulary that is core-registered on every install:
+// the schedule names of wp cron schedule list and the hooks wp cron event
+// list always prints. None is a live directory plugin; treating them as
+// slugs floods a paste with phantom removal verdicts.
+const CORE_CRON_WORDS = new Set([
+  "hourly", "twicedaily", "daily", "weekly",
+  "wp_version_check", "wp_update_plugins", "wp_update_themes",
+  "wp_scheduled_delete", "delete_expired_transients",
+  "wp_scheduled_auto_draft_delete", "recovery_mode_clean_expired_keys",
+  "wp_site_health_scheduled_check", "wp_https_detection",
+  "wp_privacy_delete_old_export_files", "wp_update_user_counts"
+]);
+// Header field sets whose "name" column is NOT a plugin (wp cron schedule
+// list names its SCHEDULES). Matching headers suppress identity tracking.
+const NON_PLUGIN_HEADER_SETS = new Set(["display,interval,name"]);
 // Directory slugs for files that live directly in wp-content/plugins/.
 // index.php is the silence-is-golden stub in every install, not a plugin.
 const FILE_ALIASES = new Map([["hello", "hello-dolly"], ["index", null]]);
@@ -140,7 +156,10 @@ export function slugListTokens(line) {
   if (cleaned.some(t => STOP_WORDS.has(t))) return null;
   if (cleaned.every(t => isColumnLabel(t))) return null;
   if (!cleaned.every(t => SLUG_RE.test(t) && !/^\d+$/.test(t))) return null;
-  return cleaned;
+  // core cron hooks and schedule names ride along in wp cron ids output;
+  // they are scheduler vocabulary, not plugins
+  const withoutCron = cleaned.filter(t => !CORE_CRON_WORDS.has(t));
+  return withoutCron.length ? withoutCron : null;
 }
 
 /** Extract a plugin slug from one line of pasted input, or null. */
@@ -275,6 +294,7 @@ export function slugFromLine(line) {
   // "update" stay parseable: those are real directory slugs)
   if (HEADER_NAMES.has(s)) return null;
   if (UI_FRAMING_WORDS.has(s)) return null;
+  if (CORE_CRON_WORDS.has(s)) return null;
   if (/_/.test(s) && isColumnLabel(s)) return null;
   return s;
 }
@@ -310,6 +330,9 @@ function jsonSlugs(input) {
       // the REST "dir/file" form; name is last because the REST API puts
       // the DISPLAY name there
       if (item && typeof item === "object") {
+        // a wp cron schedule object (name/display/interval) names a
+        // SCHEDULE, not a plugin
+        if (item.interval != null && item.display != null && item.slug == null && item.plugin == null) return "";
         const v = item.slug ?? item.plugin ?? item.plugin_name ?? item.file ?? item.textdomain ?? item.name ?? "";
         // the plugin/file keys hold "dir/file"; the dir is the slug, and
         // resolving here keeps a bare "Owner/repo" STRING ambiguous later
@@ -358,6 +381,8 @@ function isStructuralLine(line) {
   const words = s.toLowerCase().split(/[\s,]+/).filter(Boolean);
   if (words.length === 1 && HEADER_NAMES.has(words[0])) return true;
   if (words.length === 1 && FILE_ALIASES.get(words[0]) === null) return true;
+  if (words.length === 1 && CORE_CRON_WORDS.has(words[0])) return true;
+  if (words.length >= 2 && words.every(w => CORE_CRON_WORDS.has(w))) return true;
   // a lone underscore compound of column words is a db/table heading
   if (words.length === 1 && /_/.test(words[0]) && isColumnLabel(words[0])) return true;
   if (words.length >= 2 && words.every(w => isColumnLabel(w))) return true;
@@ -476,7 +501,8 @@ export function parseSlugsDetailed(input) {
         // a Field/Value header opens an assoc table (wp plugin get): the
         // plugin identity lives in its "name" ROW, not in a column
         pipeAssoc = fieldValuePair;
-        const idx = pipeAssoc ? -1 : slugColumnIndex(lower);
+        const knownNonPlugin = NON_PLUGIN_HEADER_SETS.has([...lower].sort().join(","));
+        const idx = (pipeAssoc || knownNonPlugin) ? -1 : slugColumnIndex(lower);
         pipeSlugColumn = idx !== -1 ? idx : null;
         // a header without any identity column describes rows that carry
         // no plugin; believing it beats guessing at their cells
@@ -542,7 +568,8 @@ export function parseSlugsDetailed(input) {
             isIdentityLabel(lower[csvSlugColumn] ?? ""));
         if (rowIsHeader) {
           csvAssoc = fieldValuePair;
-          const idx = csvAssoc ? -1 : slugColumnIndex(lower);
+          const knownNonPlugin = NON_PLUGIN_HEADER_SETS.has([...lower].sort().join(","));
+          const idx = (csvAssoc || knownNonPlugin) ? -1 : slugColumnIndex(lower);
           csvSlugColumn = idx !== -1 ? idx : null;
           // a header without any identity column describes rows that carry
           // no plugin; believing it beats guessing at their cells

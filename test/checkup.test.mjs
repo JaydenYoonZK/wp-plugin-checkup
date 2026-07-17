@@ -841,3 +841,31 @@ test("path listings keep stub files and plugins slugged like directories", () =>
   assert.equal(slugFromLine("wp-content/plugins/uploads"), "uploads");
   assert.deepEqual(parseSlugs("wp-content/plugins\nwp-content/plugins/uploads"), ["uploads"]);
 });
+
+
+/* ---------- regressions from the tenth adversarial round (v1.3.10) ---------- */
+
+test("wp cron schedule list never mints schedule names as plugins", () => {
+  // name/display/interval tables name SCHEDULES; hourly, daily, and friends
+  // are core vocabulary, not plugins
+  const csv = parseSlugsDetailed("name,display,interval\nhourly,Once Hourly,3600\ntwicedaily,Twice Daily,43200\ndaily,Once Daily,86400");
+  assert.deepEqual(csv.slugs, []);
+  assert.equal(csv.skipped.length, 3); // the identity-less rows report
+  assert.deepEqual(parseSlugs(JSON.stringify([{ name: "hourly", display: "Once Hourly", interval: 3600 }])), []);
+  assert.deepEqual(parseSlugs("---\n- name: hourly\n  display: Once Hourly\n  interval: 3600"), []);
+  // real plugin outputs with a name key keep parsing
+  assert.deepEqual(parseSlugs(JSON.stringify([{ name: "akismet", status: "active" }])), ["akismet"]);
+});
+
+test("core cron hooks are scheduler vocabulary, not plugins", () => {
+  // wp cron event list --format=ids prints space-joined hook names
+  const ids = parseSlugsDetailed("wp_version_check wp_update_plugins wp_update_themes wp_scheduled_delete delete_expired_transients");
+  assert.deepEqual(ids.slugs, []);
+  assert.deepEqual(ids.skipped, []);
+  // --field=hook prints one per line
+  assert.deepEqual(parseSlugs("wp_version_check\nwp_update_plugins"), []);
+  // a plugin's own hook rides along and stays visible
+  assert.deepEqual(parseSlugs("wp_version_check akismet_scheduled_delete"), ["akismet_scheduled_delete"]);
+  // real underscore plugins are untouched
+  assert.deepEqual(parseSlugs("serve_static f12_configurator"), ["serve_static", "f12_configurator"]);
+});

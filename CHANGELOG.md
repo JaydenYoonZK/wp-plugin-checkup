@@ -3,6 +3,15 @@
 All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.3.10] - 2026-07-17
+
+A tenth adversarial round replayed every canonical paste from the previous nine (all clean) and finished the wp cron family.
+
+### Fixed
+
+- wp cron schedule list stopped minting its schedule names as plugins across csv, json, and yaml: the name/display/interval field set marks a schedule table, whose name column is suppressed like other identity-less headers, and schedule objects are recognized by shape in JSON.
+- wp cron event list --format=ids and --field=hook output is scheduler vocabulary: the core hooks WordPress registers on every install (wp_version_check and friends, none a live plugin) are framing, while a plugin's own hooks riding along stay visible.
+
 ## [1.3.9] - 2026-07-17
 
 A ninth adversarial round covered developer manifests and scheduler screens, and caught the eighth round's root-line rule over-reaching.
@@ -606,6 +615,7 @@ First stable release.
 - Dependency-free ES module engine (docs/checkup.js) with 13 Node tests.
 - Browser UI in the shared suite design with light and dark themes and a ?demo deep link.
 
+[1.3.10]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.10
 [1.3.9]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.9
 [1.3.8]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.8
 [1.3.7]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.7
