@@ -53,23 +53,27 @@ function isHeaderCells(lower) {
   const labels = lower.filter(isColumnLabel).length;
   return labels === lower.length || (lower.length >= 3 && labels >= 2);
 }
-// A cell that names the plugin column: an identity key itself, or a column
-// label built around one ("plugin_name", "Plugin Slug"). The header
-// re-detect gate must accept every label the tracker can follow.
+// A cell that names the plugin column: an identity key itself, or a
+// compound made ONLY of identity keys ("plugin_name", "Plugin Slug").
+// "Author Name" contains "name" but names the AUTHOR column; treating it
+// as the plugin column would track author names as slugs.
+const IDENTITY_KEYS = ["slug", "plugin", "name", "title"];
 function isIdentityLabel(cell) {
-  if (["slug", "plugin", "name", "title"].includes(cell)) return true;
-  return isColumnLabel(cell) && /[\s_]/.test(cell) &&
-    cell.split(/[\s_]+/).some(k => ["slug", "plugin", "name", "title"].includes(k));
+  if (IDENTITY_KEYS.includes(cell)) return true;
+  if (!/[\s_]/.test(cell)) return false;
+  const parts = cell.split(/[\s_]+/).filter(Boolean);
+  return parts.every(p => IDENTITY_KEYS.includes(p) || p === "by") &&
+    parts.some(p => IDENTITY_KEYS.includes(p));
 }
 // The plugin column, by key priority (exact word first, then a compound
 // containing the key), so an exact "Plugin" beats an earlier "... Name".
 function slugColumnIndex(lower) {
-  for (const k of ["slug", "plugin", "name", "title"]) {
+  for (const k of IDENTITY_KEYS) {
     const i = lower.indexOf(k);
     if (i !== -1) return i;
   }
-  for (const k of ["slug", "plugin", "name", "title"]) {
-    const i = lower.findIndex(f => isColumnLabel(f) && /[\s_]/.test(f) && f.split(/[\s_]+/).includes(k));
+  for (const k of IDENTITY_KEYS) {
+    const i = lower.findIndex(f => isIdentityLabel(f) && /[\s_]/.test(f) && f.split(/[\s_]+/).includes(k));
     if (i !== -1) return i;
   }
   return -1;
@@ -97,7 +101,9 @@ const STOP_WORDS = new Set(["and", "or", "the", "with", "w", "plus", "also", "th
  *  hand-written checklist ("- akismet", "* akismet", "1. akismet"). A YAML
  *  "- name:" item survives because the yaml pattern tolerates a missing dash. */
 function stripLineDecorations(s) {
-  return s.replace(/^(?:>\s*)+/, "").replace(/^(?:[-*+•]|\d+[.)])\s+/, "");
+  return s.replace(/^(?:>\s*)+/, "")
+    .replace(/^[\u2500-\u257f]+\s+/, "") // tree(1) branch glyphs
+    .replace(/^(?:[-*+•]|\d+[.)])\s+/, "");
 }
 
 /** A line of space-separated slugs (ls output of wp-content/plugins, a
@@ -116,10 +122,13 @@ export function slugListTokens(line) {
   if (!tokens.some(t => /[-_./0-9]/.test(t))) return null;
   if (tokens.some(t => STOP_WORDS.has(t))) return null;
   const cleaned = tokens.map(t => {
-    // ls -F / ls -p decorate entries with a trailing slash, and grep-style
+    // ls -F / ls -p decorate entries with a trailing slash, grep-style
     // output pairs the folder with a FILE (the dot is what separates
-    // "akismet/akismet.php" from the conjunction "and/or")
+    // "akismet/akismet.php" from the conjunction "and/or"), and an
+    // interactive ls -d grid puts several full plugin paths on one line
     let w = t.replace(/\/+$/, "");
+    const deep = /(?:^|\/)(?:wp-content\/)?plugins\/([a-z0-9_-]+)$/.exec(w);
+    if (deep) w = deep[1];
     const pair = /^([a-z0-9_-]+)\/[a-z0-9_-]+\.[a-z0-9.]+$/.exec(w);
     if (pair) w = pair[1];
     return w.replace(/\.php$/i, "");
@@ -148,9 +157,17 @@ export function slugFromLine(line) {
   const arrayEntry = /^\d+\s*=>\s*["']([^"']+)["'],?$/.exec(s);
   if (arrayEntry) s = arrayEntry[1];
 
-  // WP-CLI YAML list item: "- name: akismet" (also bare "slug: x" / "plugin: x")
-  const yaml = /^-?\s*(?:plugin_name|name|slug|plugin):\s*(.+)$/.exec(s);
-  if (yaml) s = yaml[1].trim().replace(/^["']|["']$/g, "");
+  // WP-CLI YAML list item: "- name: akismet" (also "slug: x" / "plugin: x").
+  // A name: value that is not already slug-shaped is a DISPLAY name (wp
+  // plugin search yaml prints "name: Broadcast" beside "slug: threewp-
+  // broadcast"); lowercasing it would mint the wrong, sometimes closed,
+  // plugin. slug/plugin/plugin_name keys carry identity by definition.
+  const yaml = /^-?\s*(plugin_name|name|slug|plugin):\s*(.+)$/.exec(s);
+  if (yaml) {
+    const value = yaml[2].trim().replace(/^["']|["']$/g, "");
+    if (yaml[1] === "name" && !SLUG_RE.test(value)) return null;
+    s = value;
+  }
 
   // Composer / wpackagist: wpackagist-plugin/akismet (with or without the
   // surrounding quotes and version constraint of a composer.json require line)
@@ -185,11 +202,17 @@ export function slugFromLine(line) {
     } catch { return null; }
   } else if (!composer) {
     s = s.replace(/\\/g, "/");
-    const pluginPath = /(?:^|\/)(?:wp-content\/)?plugins\/([^/]+)/i.exec(s);
+    // a path that ENDS at a WordPress directory is the find/tree root
+    // line, not a plugin ("wp-content" and "var" are not plugins)
+    if (/(?:^|\/)(?:wp-content|plugins|mu-plugins|themes|uploads)\/?$/i.test(s) && s.includes("/")) return null;
+    const pluginPath = /(?:^|[\s/])(?:wp-content\/)?plugins\/([^/\s]+)/i.exec(s);
     if (pluginPath) s = pluginPath[1];
-    // first-segment reads only apply to a single path; on a multi-entry
-    // line (an ls -F grid) it would swallow every entry after the first "/"
-    else if (!/\s/.test(s) && s.includes("/")) s = s.split("/").filter(Boolean)[0] || "";
+    // the first-segment read exists for the relative folder/file pair
+    // ("akismet/akismet.php"); absolute or deeper paths are not plugins,
+    // and multi-entry lines are handled per token upstream
+    else if (!/\s/.test(s) && !s.startsWith("/") && s.split("/").filter(Boolean).length === 2 && s.includes("/")) {
+      s = s.split("/").filter(Boolean)[0] || "";
+    }
   }
 
   // Multi-token leftovers: keep the first cell of tabular tool output (second
@@ -316,6 +339,9 @@ function isStructuralLine(line) {
   if (/^(?:by|view|visit)\s+\S/i.test(s)) return true;
   // Markdown code fences around a pasted debug report
   if (/^`+$/.test(s)) return true;
+  // the root line of a find/tree listing: a path ENDING at a WordPress
+  // directory is framing, its entries carry the plugins
+  if (s.includes("/") && !/\s/.test(s) && /(?:^|\/)(?:wp-content|plugins|mu-plugins|themes|uploads)\/?$/i.test(s)) return true;
   if (/^[{}()[\]],?;?$/.test(s)) return true;
   // the shell of a var_export/print_r array dump
   if (/^array\s*\($/i.test(s)) return true;
@@ -340,9 +366,11 @@ export function parseSlugsDetailed(input) {
   let csvSlugColumn = null;
   let csvFieldCount = 0;
   let csvAssoc = false;
+  let csvNoIdentity = false;
   let pipeSlugColumn = null;
   let pipeCellCount = 0;
   let pipeAssoc = false;
+  let pipeNoIdentity = false;
   // a slug candidate that stands alone in a cell: not row furniture, not a
   // bare number, not a column label
   const soloSlug = (cell) => {
@@ -354,8 +382,8 @@ export function parseSlugsDetailed(input) {
     const raw = String(line);
     // a blank line ends a table block; what follows is a fresh paste section
     if (!json && !raw.trim()) {
-      csvSlugColumn = null; csvFieldCount = 0; csvAssoc = false;
-      pipeSlugColumn = null; pipeCellCount = 0; pipeAssoc = false;
+      csvSlugColumn = null; csvFieldCount = 0; csvAssoc = false; csvNoIdentity = false;
+      pipeSlugColumn = null; pipeCellCount = 0; pipeAssoc = false; pipeNoIdentity = false;
       continue;
     }
     let items = [raw];
@@ -365,8 +393,7 @@ export function parseSlugsDetailed(input) {
     // itself contain a pipe ("Yoast | SEO",wordpress-seo,active)
     // a non-identity "key: a, b, c" line is a metadata list (Site Health's
     // theme_features/gd_formats lines), never CSV to split into slugs
-    const metaKeyList = /^-?\s*[a-z_]+:(\s|$)/.test(raw.trim()) &&
-      !/^-?\s*(?:plugin_name|name|slug|plugin):/.test(raw.trim());
+    const metaKeyList = /^-?\s*[a-z_]+:(\s|$)/.test(raw.trim());
     const csvish = raw.includes(",") && !hasJsonMember(raw) && !metaKeyList &&
       (!raw.includes("|") || csvSlugColumn !== null || raw.includes('"'));
     if (!json && !csvish && raw.includes("|") && !hasJsonMember(raw) && !/^[+|:\-\s]+$/.test(raw.trim())) {
@@ -403,12 +430,19 @@ export function parseSlugsDetailed(input) {
         pipeAssoc = fieldValuePair;
         const idx = pipeAssoc ? -1 : slugColumnIndex(lower);
         pipeSlugColumn = idx !== -1 ? idx : null;
+        // a header without any identity column describes rows that carry
+        // no plugin; believing it beats guessing at their cells
+        pipeNoIdentity = !pipeAssoc && idx === -1;
         pipeCellCount = cells.length;
         continue;
       }
       expanded = true;
       items = null;
-      if (pipeSlugColumn !== null && cells.length === pipeCellCount) {
+      if (pipeNoIdentity && cells.length === pipeCellCount) {
+        // rows of a table whose header named no plugin column: report them
+        items = [];
+        skipped.push(raw.trim());
+      } else if (pipeSlugColumn !== null && cells.length === pipeCellCount) {
         const tracked = cells[pipeSlugColumn] ?? "";
         if (soloSlug(tracked)) items = [tracked];
         // a display name under the tracked column still deserves its report
@@ -462,6 +496,9 @@ export function parseSlugsDetailed(input) {
           csvAssoc = fieldValuePair;
           const idx = csvAssoc ? -1 : slugColumnIndex(lower);
           csvSlugColumn = idx !== -1 ? idx : null;
+          // a header without any identity column describes rows that carry
+          // no plugin; believing it beats guessing at their cells
+          csvNoIdentity = !csvAssoc && idx === -1;
           csvFieldCount = fields.length;
           continue;
         }
@@ -472,7 +509,12 @@ export function parseSlugsDetailed(input) {
         }
         // only rows that match the header's shape are its data rows; a line
         // with a different field count is a fresh list, not a table row
-        else if (csvSlugColumn !== null && fields.length === csvFieldCount) {
+        else if (csvNoIdentity && fields.length === csvFieldCount) {
+          // rows of a table whose header named no plugin column: report them
+          items = [];
+          expanded = true;
+          skipped.push(raw.trim());
+        } else if (csvSlugColumn !== null && fields.length === csvFieldCount) {
           items = [fields[csvSlugColumn] ?? ""];
         } else if (WPCLI_STATUSES.has(lower[1])) {
           items = [fields[0]];

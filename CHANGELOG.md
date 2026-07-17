@@ -3,6 +3,18 @@
 All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.3.8] - 2026-07-17
+
+An eighth adversarial round swept the remaining filesystem and search screens.
+
+### Fixed
+
+- find and tree listings no longer mint a phantom from their root line: a path that ends at a WordPress directory ("wp-content/plugins", "/var/www/html/wp-content/plugins") is framing, and tree's branch glyphs are stripped so its entries parse.
+- An interactive ls -d wp-content/plugins/*/ copy (multi-column, several full paths per line) parses every path instead of silently keeping the first.
+- git status of a wp-content-rooted checkout parses its modified/deleted plugin lines; the plugins/ path anchor now accepts the label's whitespace.
+- wp plugin search --format=yaml no longer mints phantoms from display names: a name: value that is not already slug-shaped is a display name ("name: Broadcast" beside "slug: threewp-broadcast" would otherwise lowercase into the CLOSED plugin "broadcast"), and identity-key lines are never comma-split, so quoted multi-part names report as skipped while the slug: lines carry the real identity.
+- A header naming no plugin column ("Author Name,Version") marks its rows as reported instead of guessing at their cells; compound column labels count as the plugin column only when built purely of identity words, so "Author Name" can never outrank an exact "Plugin" column.
+
 ## [1.3.7] - 2026-07-17
 
 A seventh adversarial round went after the database-facing screens and the checksum formats.
@@ -582,6 +594,7 @@ First stable release.
 - Dependency-free ES module engine (docs/checkup.js) with 13 Node tests.
 - Browser UI in the shared suite design with light and dark themes and a ?demo deep link.
 
+[1.3.8]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.8
 [1.3.7]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.7
 [1.3.6]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.6
 [1.3.5]: https://github.com/JaydenYoonZK/wp-plugin-checkup/releases/tag/v1.3.5

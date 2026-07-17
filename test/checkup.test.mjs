@@ -752,3 +752,57 @@ test("repeated compound-label headers re-detect instead of parsing as data", () 
   assert.deepEqual(twice.slugs, ["akismet", "wordfence"]);
   assert.deepEqual(twice.skipped, []);
 });
+
+
+test("a header without an identity column marks its rows as reported, not guessed", () => {
+  // "Author Name" contains "name" but names the author column; tracking it
+  // (or reading its rows token-wise) would mint author names as slugs
+  const csv = parseSlugsDetailed("Author Name,Version\nAutomattic,5.3\nWPForms,2.0");
+  assert.deepEqual(csv.slugs, []);
+  assert.deepEqual(csv.skipped, ["Automattic,5.3", "WPForms,2.0"]);
+  const pipe = parseSlugsDetailed("| Author | Version |\n| Automattic | 5.3 |");
+  assert.deepEqual(pipe.slugs, []);
+  assert.deepEqual(pipe.skipped, ["| Automattic | 5.3 |"]);
+  // identity columns still track, and a blank line frees the rows
+  assert.deepEqual(parseSlugs("Author Name,Plugin Slug,Status\nAutomattic,akismet,active"), ["akismet"]);
+  assert.deepEqual(parseSlugs("Author Name,Version\nAutomattic,5.3\n\nakismet, jetpack"), ["akismet", "jetpack"]);
+});
+
+
+/* ---------- regressions from the eighth adversarial round (v1.3.8) ---------- */
+
+test("find and tree listings parse entries and silence their root line", () => {
+  // find's first output line is the directory itself; "wp-content" and
+  // "var" are not plugins
+  const found = parseSlugsDetailed("wp-content/plugins\nwp-content/plugins/akismet\nwp-content/plugins/contact-form-7");
+  assert.deepEqual(found.slugs, ["akismet", "contact-form-7"]);
+  assert.deepEqual(found.skipped, []);
+  assert.deepEqual(parseSlugs("/var/www/html/wp-content/plugins\n/var/www/html/wp-content/plugins/akismet"), ["akismet"]);
+  const tree = parseSlugsDetailed("wp-content/plugins\n├── akismet\n├── contact-form-7\n└── wordfence");
+  assert.deepEqual(tree.slugs, ["akismet", "contact-form-7", "wordfence"]);
+});
+
+test("interactive ls -d grids parse every full path on a line", () => {
+  const grid = parseSlugsDetailed("wp-content/plugins/akismet/            wp-content/plugins/really-simple-ssl/\nwp-content/plugins/contact-form-7/     wp-content/plugins/wordfence/");
+  assert.deepEqual(grid.slugs, ["akismet", "really-simple-ssl", "contact-form-7", "wordfence"]);
+  assert.deepEqual(grid.skipped, []);
+});
+
+test("git status of a wp-content-rooted checkout parses its plugin lines", () => {
+  assert.deepEqual(
+    parseSlugs("modified:   plugins/akismet/akismet.php\ndeleted:    plugins/hello.php"),
+    ["akismet", "hello-dolly"]
+  );
+});
+
+test("search-yaml display names never lowercase into slugs", () => {
+  // wp plugin search yaml prints "name: Broadcast" beside "slug:
+  // threewp-broadcast"; "broadcast" is a real CLOSED plugin, so
+  // lowercasing the display name would mint a false closure verdict
+  const yaml = "name: 'Slider, Gallery, and Carousel by MetaSlider'\nslug: ml-slider\nname: Broadcast\nslug: threewp-broadcast\nname: akismet";
+  const parsed = parseSlugsDetailed(yaml);
+  assert.deepEqual(parsed.slugs, ["ml-slider", "threewp-broadcast", "akismet"]);
+  assert.equal(parsed.skipped.length, 2); // the two display names, reported
+  // list-yaml identity values that ARE slugs keep parsing
+  assert.deepEqual(parseSlugs("---\n- name: akismet\n  status: active"), ["akismet"]);
+});
