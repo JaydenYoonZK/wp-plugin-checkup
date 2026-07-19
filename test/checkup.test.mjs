@@ -1107,7 +1107,7 @@ test("tree -F and path-form roots keep a plugin slugged like a core directory", 
 });
 
 
-/* ----- regressions from the final gate (v1.3.18) ----- */
+/* ----- v1.3.18 regressions ----- */
 
 test("a plugin's own config files never mis-release the ls -R latch", () => {
   // composer.json and wp-cli.yml ship inside most modern plugins; the
