@@ -3,6 +3,12 @@
 All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.4.10] - 2026-08-16
+
+### Fixed
+
+- The shield that covers the strip above the menu now rides fixed to the viewport. It was sticky before, and under a fast scroll Safari can let a sticky element lag a frame behind, flashing content in the gap.
+
 ## [1.4.9] - 2026-08-16
 
 ### Fixed
