@@ -61,6 +61,22 @@ test("security and structured metadata remain valid", () => {
   assert.doesNotThrow(() => JSON.parse(jsonLd[1]));
 });
 
+test("versioned asset refs and the footer version match package.json", () => {
+  const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
+  const pages = {
+    "index.html": html,
+    "404.html": notFound,
+    "app.js": readFileSync(join(docs, "app.js"), "utf8"),
+    "sw.js": readFileSync(join(docs, "sw.js"), "utf8"),
+  };
+  for (const [name, content] of Object.entries(pages)) {
+    for (const match of content.matchAll(/\?v=([0-9][^"']*)/g)) {
+      assert.equal(match[1], pkg.version, `${name} carries a stale ?v= ref: ${match[0]}`);
+    }
+  }
+  assert.ok(html.includes(`>v${pkg.version}</a>`), "footer version link is stale");
+});
+
 test("search and social metadata point to the canonical site", () => {
   const robots = readFileSync(join(docs, "robots.txt"), "utf8");
   const sitemap = readFileSync(join(docs, "sitemap.xml"), "utf8");
