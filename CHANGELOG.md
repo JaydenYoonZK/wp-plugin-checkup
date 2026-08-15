@@ -3,6 +3,16 @@
 All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.4.11] - 2026-08-16
+
+### Fixed
+
+- The green pill that floated over the status bar on an iPhone turned out to be the skip-to-content link, parked just above the viewport's top edge, exactly the zone iOS paints behind the clock. It parks off to the side now, still sliding in on keyboard focus, and the fix was watched working in the iOS Simulator instead of assumed.
+
+### Changed
+
+- The shield strips from the last two releases are removed: the Simulator settled that nothing inside a page can paint in the status-bar zone, so neither ever drew a pixel. The menu bar is pinned with position fixed and safe-area padding instead, so a hard fling can never lag it a frame, and the faint content visible behind the status bar is Safari's own edge-to-edge design, identical on apple.com itself, so it stays.
+
 ## [1.4.10] - 2026-08-16
 
 ### Fixed
