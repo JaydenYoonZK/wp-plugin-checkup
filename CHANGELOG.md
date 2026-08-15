@@ -3,6 +3,12 @@
 All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.4.7] - 2026-08-15
+
+### Changed
+
+- The footer now carries a Built on chip for the WordPress.org Plugin Directory, the registry every check runs against.
+
 ## [1.4.6] - 2026-08-15
 
 ### Changed
