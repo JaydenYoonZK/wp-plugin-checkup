@@ -3,6 +3,12 @@
 All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.4.12] - 2026-08-16
+
+### Fixed
+
+- The film grain texture covered the screen as a fixed layer, and on iOS Safari that made the browser draw scrolled page content up into the status-bar strip, ghosting around the clock and battery icons. The grain now sits on the page itself and scrolls with it, so the strip stays clean. It looks exactly the same.
+
 ## [1.4.11] - 2026-08-16
 
 ### Fixed
